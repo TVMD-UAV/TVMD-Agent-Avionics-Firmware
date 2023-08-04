@@ -2,13 +2,18 @@
 #include "configs.h"
 #include <Arduino.h>
 
-#define SERVER
+// #define SERVER
 
 #ifdef SERVER
 CommServer comm(COMM_PORT);
-MsgPacket packet;
+CtrlPacket packet;
 #else
 CommClient comm(11411, IPAddress(192, 168, 4, 1));
+#endif
+
+#ifndef SERVER
+#include "SensorDriver.h"
+Sensors sensor;
 #endif
 
 void Wifi_connection_setup() {
@@ -20,7 +25,6 @@ void Wifi_connection_setup() {
   WiFi.begin(WIFI_SSID, WIFI_PSWD);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    log_printf(".");
   }
   log_i("\nWiFi connected with IP address:  %s\n", WiFi.softAPIP().toString());
 #endif
@@ -33,6 +37,7 @@ TaskHandle_t websocket_task_handle;
 void websocket_loop(void *parameter) {
   while (true)
     comm.update();
+  // TODO: Wifi connection check
 }
 
 void setup() {
@@ -41,13 +46,16 @@ void setup() {
 #ifdef SERVER
   packet.time = 0;
   packet.id = 0;
+#else
+  sensor.init();
+//   sensor.init(14, 15);
 #endif
 
   comm.init();
 
   xTaskCreatePinnedToCore(websocket_loop, /* Function to implement the task */
                           "websocket_updating",   /* Name of the task */
-                          10000,                  /* Stack size in words */
+                          15000,                  /* Stack size in words */
                           NULL,                   /* Task input parameter */
                           0,                      /* Priority of the task */
                           &websocket_task_handle, /* Task handle. */
@@ -61,7 +69,7 @@ void loop() {
     packet.id += 1;
     packet.time = micros();
 
-    comm.send(CommProtocol::PACKET_TYPE::MSG, &packet);
+    comm.send(CommProtocol::PACKET_TYPE::CTRL_CMDS, &packet);
 
     last_publish_time = millis();
   }
@@ -69,6 +77,12 @@ void loop() {
   if (millis() - last_summary_time >= 5000) {
     Serial.printf("fps: %f, latency: %f, packet_lost: %d\n", comm.ben.get_fps(),
                   comm.ben.get_latency(), comm.ben.packet_lost());
+    last_summary_time = millis();
+  }
+#else
+  if (millis() - last_summary_time >= 500) {
+    const StatePacket *s_packet_ptr = sensor.state_packet_gen();
+    comm.send(CommProtocol::PACKET_TYPE::STATE_AGN, s_packet_ptr);
     last_summary_time = millis();
   }
 #endif
