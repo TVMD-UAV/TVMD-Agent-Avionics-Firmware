@@ -1,11 +1,11 @@
-#define WEBSOCKET_PINGPONG
+// #define WEBSOCKET_PINGPONG
 #ifdef WEBSOCKET_PINGPONG
 #include "benchmark.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
-#define SERVER
+// #define SERVER
 
 #ifdef SERVER
 #include <WebSocketsServer.h>

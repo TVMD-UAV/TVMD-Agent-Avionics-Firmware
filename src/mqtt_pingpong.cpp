@@ -1,4 +1,4 @@
-// # define MQTT_PING_PONG
+// #define MQTT_PING_PONG
 #ifdef MQTT_PING_PONG
 #include "benchmark.h"
 #include <Arduino.h>
@@ -6,7 +6,7 @@
 #include <PicoMQTT.h>
 Benchmark ben(100);
 
-// #define SERVER
+#define SERVER
 
 const char *ssid = "esp_mqtt";
 const char *password = "esp_ros_pingpong";
@@ -87,7 +87,7 @@ void setup() {
     // packet.id, packet.time);
 
     // Pong
-    mqtt.publish(topic_pong, (char *)&packet, sizeof(packet), 0, false, 0);
+    mqtt.publish(topic_pong, (uint8_t *)&packet, sizeof(packet), 0, false, 0);
   });
 #endif
 

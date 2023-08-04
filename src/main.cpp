@@ -1,3 +1,79 @@
+#include "CommProtocol.h"
+#include "configs.h"
+#include <Arduino.h>
+
+#define SERVER
+
+#ifdef SERVER
+CommServer comm(COMM_PORT);
+MsgPacket packet;
+#else
+CommClient comm(11411, IPAddress(192, 168, 4, 1));
+#endif
+
+void Wifi_connection_setup() {
+#ifdef SERVER
+  WiFi.softAP(WIFI_SSID, WIFI_PSWD);
+  log_i("AP started with IP address: %s\n", WiFi.softAPIP().toString());
+#else
+  log_i("Connecting to %s\n", (String)WIFI_SSID);
+  WiFi.begin(WIFI_SSID, WIFI_PSWD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    log_printf(".");
+  }
+  log_i("\nWiFi connected with IP address:  %s\n", WiFi.softAPIP().toString());
+#endif
+}
+
+unsigned long last_publish_time = 0;
+unsigned long last_summary_time = 0;
+
+TaskHandle_t websocket_task_handle;
+void websocket_loop(void *parameter) {
+  while (true)
+    comm.update();
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wifi_connection_setup();
+#ifdef SERVER
+  packet.time = 0;
+  packet.id = 0;
+#endif
+
+  comm.init();
+
+  xTaskCreatePinnedToCore(websocket_loop, /* Function to implement the task */
+                          "websocket_updating",   /* Name of the task */
+                          10000,                  /* Stack size in words */
+                          NULL,                   /* Task input parameter */
+                          0,                      /* Priority of the task */
+                          &websocket_task_handle, /* Task handle. */
+                          0); /* Core where the task should run */
+}
+
+void loop() {
+
+#ifdef SERVER
+  if (millis() - last_publish_time >= 20) {
+    packet.id += 1;
+    packet.time = micros();
+
+    comm.send(CommProtocol::PACKET_TYPE::MSG, &packet);
+
+    last_publish_time = millis();
+  }
+
+  if (millis() - last_summary_time >= 5000) {
+    Serial.printf("fps: %f, latency: %f, packet_lost: %d\n", comm.ben.get_fps(),
+                  comm.ben.get_latency(), comm.ben.packet_lost());
+    last_summary_time = millis();
+  }
+#endif
+};
+
 #ifdef UDP_PING_PONG
 #include <Arduino.h>
 #include <AsyncUDP.h>
@@ -62,6 +138,14 @@ void setup() {
 #endif
 
 #ifdef SERVER
+  // mqtt.subscribe("esp_comm/pong", [](const char * topic, const char *
+  // payload) {
+  //     // payload might be binary, but PicoMQTT guarantees that it's
+  //     zero-terminated Packet pong_packet; memcpy((void*)&pong_packet,
+  //     payload, sizeof(pong_packet)); Serial.printf("Received pong in '%s':
+  //     id=%ld, time=%ld, at %ld\n", topic, pong_packet.id, pong_packet.time,
+  //     micros());
+  // });
 
   if (udp.listen(udp_port)) {
     Serial.print("UDP Listening on IP: ");
@@ -94,6 +178,18 @@ void setup() {
   }
 
 #else
+  //   mqtt.subscribe("esp_comm/ping", [](const char * topic, const char *
+  //   payload) {
+  //     // payload might be binary, but PicoMQTT guarantees that it's
+  //     zero-terminated memcpy((void*)&packet, payload, sizeof(packet));
+  //     Serial.printf("Received ping in '%s': id=%ld, time=%ld\n", topic,
+  //     packet.id, packet.time);
+
+  //     // Pong
+  //     mqtt.publish(topic_pong, (char*)&packet, sizeof(packet), 0, false, 0);
+  //   });
+  // if(udp.connect(IPAddress(0,0,0,0), udp_port)) {
+  // if(udp.connect(IPAddress(192,168,4,1), udp_port)) {
   if (udp.listen(udp_port)) {
     Serial.println("UDP connected");
     udp.onPacket([](AsyncUDPPacket packet) {
@@ -135,10 +231,17 @@ int greeting_number = 1;
 void loop() {
 // Send broadcast
 #ifdef SERVER
-  if (millis() - last_publish_time >= 10) {
+  if (millis() - last_publish_time >= 20) {
+    // We're publishing to a topic, which we're subscribed too, but these
+    // message will *not* be delivered locally. String topic = "picomqtt/esp-" +
+    // WiFi.macAddress();
+
     t_packet.id += 1;
     t_packet.time = micros();
+    // mqtt.publish(topic_ping, (char*)&packet, sizeof(packet), 0, false, 0);
     udp.broadcastTo((uint8_t *)&t_packet, sizeof(t_packet), udp_port);
+    // Serial.printf("Publishing ping from %s: id=%ld, time=%ld, at %ld\n",
+    // WiFi.localIP().toString(), t_packet.id, t_packet.time, micros());
     last_publish_time = millis();
   }
 
