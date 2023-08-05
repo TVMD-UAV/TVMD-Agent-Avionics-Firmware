@@ -2,7 +2,22 @@
 #include "configs.h"
 #include <Arduino.h>
 
+#include <EEPROM.h>
+#define EEPROM_SIZE 1
+
 // #define SERVER
+// #define WRITE_AGENT_ID
+
+#define EEPROM_AGENT_ID_ADDR 0
+
+// 0: server
+// 1: normal agent
+// 2: Wire occupied agent
+#ifdef SERVER
+#define AGENT_ID 0
+#else
+#define AGENT_ID 1
+#endif
 
 #ifdef SERVER
 CommServer comm(COMM_PORT);
@@ -102,15 +117,29 @@ void state_feedback(void *parameter) {
 }
 #endif
 
+uint8_t agent_id;
+
 void setup() {
   Serial.begin(115200);
-  Wifi_connection_setup();
+
+  EEPROM.begin(EEPROM_SIZE);
+#ifdef WRITE_AGENT_ID
+  EEPROM.write(EEPROM_AGENT_ID_ADDR, AGENT_ID);
+  EEPROM.commit();
+#endif
+  agent_id = EEPROM.read(EEPROM_AGENT_ID_ADDR);
+  log_i("Agent id: %d, \n", agent_id);
+
+  // WiFi setup
+  Wifi_connection_setup(agent_id);
 #ifdef SERVER
   packet.time = 0;
   packet.id = 0;
 #else
-  sensor.init();
-  //   sensor.init(14, 15);
+  if (agent_id == 2)
+    sensor.init(14, 15);
+  else
+    sensor.init();
 
   x_servo.init();
   y_servo.init();
