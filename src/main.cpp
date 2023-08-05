@@ -27,12 +27,44 @@ ESCMotorDriver
     esc_p2(ESCMotorConfigs(MotorConfigs(33, 1000, 2000, 1500, 100, 4096), 95));
 #endif
 
-void Wifi_connection_setup() {
 #ifdef SERVER
-  WiFi.softAP(WIFI_SSID, WIFI_PSWD);
+#include "esp_wifi.h"
+void display_connected_devices() {
+  wifi_sta_list_t wifi_sta_list;
+  tcpip_adapter_sta_list_t adapter_sta_list;
+  esp_wifi_ap_get_sta_list(&wifi_sta_list);
+  tcpip_adapter_get_sta_list(&wifi_sta_list, &adapter_sta_list);
+
+  if (adapter_sta_list.num > 0)
+    Serial.println("-----------");
+  for (uint8_t i = 0; i < adapter_sta_list.num; i++) {
+    tcpip_adapter_sta_info_t station = adapter_sta_list.sta[i];
+    Serial.print((String) "[+] Device " + i + " | MAC : ");
+    Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X", station.mac[0],
+                  station.mac[1], station.mac[2], station.mac[3],
+                  station.mac[4], station.mac[5]);
+    // Serial.println((String) " | IP " + ip4addr_ntoa(&(station.ip)));
+
+    Serial.printf("   IP: %s\n", IPAddress(station.ip.addr).toString());
+  }
+}
+#endif
+
+void Wifi_connection_setup(int agent_id) {
+  IPAddress server_IP(192, 168, 4, 1);
+  IPAddress local_IP(192, 168, 4, agent_id + 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+#ifdef SERVER
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(server_IP, gateway, subnet);
+  const int maximum_connection = 4;
+  WiFi.softAP(WIFI_SSID, WIFI_PSWD, 1, false, maximum_connection);
   log_i("AP started with IP address: %s\n", WiFi.softAPIP().toString());
 #else
   log_i("Connecting to %s\n", (String)WIFI_SSID);
+  WiFi.mode(WIFI_STA);
+  WiFi.config(local_IP, gateway, subnet);
   WiFi.begin(WIFI_SSID, WIFI_PSWD);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -44,13 +76,31 @@ void Wifi_connection_setup() {
 unsigned long last_publish_time = 0;
 unsigned long last_summary_time = 0;
 unsigned long last_servo_time = 0;
+unsigned long last_addr_time = 0;
 
 TaskHandle_t websocket_task_handle;
 void websocket_loop(void *parameter) {
-  while (true)
+  while (true) {
     comm.update();
-  // TODO: Wifi connection check
+    // TODO: Wifi connection check
+    delay(1);
+  }
 }
+
+#ifndef SERVER
+TaskHandle_t state_feedback_handle;
+void state_feedback(void *parameter) {
+  while (true) {
+    if (millis() - last_summary_time >= 500) {
+      const StatePacket *s_packet_ptr = sensor.state_packet_gen();
+      if (comm.send(CommProtocol::PACKET_TYPE::STATE_AGN, s_packet_ptr))
+        log_i("State feedback sent!");
+      last_summary_time = millis();
+    }
+    delay(10);
+  }
+}
+#endif
 
 void setup() {
   Serial.begin(115200);
@@ -77,14 +127,30 @@ void setup() {
                           "websocket_updating",   /* Name of the task */
                           15000,                  /* Stack size in words */
                           NULL,                   /* Task input parameter */
-                          0,                      /* Priority of the task */
+                          1,                      /* Priority of the task */
                           &websocket_task_handle, /* Task handle. */
-                          0); /* Core where the task should run */
+                          1); /* Core where the task should run */
+
+#ifndef SERVER
+  xTaskCreatePinnedToCore(state_feedback,   /* Function to implement the task
+                                             */
+                          "state_feedback", /* Name of the task */
+                          5000,             /* Stack size in words */
+                          NULL,             /* Task input parameter */
+                          10,               /* Priority of the task */
+                          &state_feedback_handle, /* Task handle. */
+                          1); /* Core where the task should run */
+#endif
 }
 
 void loop() {
 
 #ifdef SERVER
+  if (millis() - last_addr_time >= 500) {
+    display_connected_devices();
+    last_addr_time = millis();
+  }
+
   if (millis() - last_publish_time >= 20) {
     packet.id += 1;
     packet.time = micros();
@@ -92,6 +158,7 @@ void loop() {
     comm.send(CommProtocol::PACKET_TYPE::CTRL_CMDS, &packet);
 
     last_publish_time = millis();
+    // display_connected_devices();
   }
 
   if (millis() - last_summary_time >= 5000) {
@@ -100,11 +167,12 @@ void loop() {
     last_summary_time = millis();
   }
 #else
-  if (millis() - last_summary_time >= 500) {
-    const StatePacket *s_packet_ptr = sensor.state_packet_gen();
-    comm.send(CommProtocol::PACKET_TYPE::STATE_AGN, s_packet_ptr);
-    last_summary_time = millis();
-  }
+//   if (millis() - last_summary_time >= 500) {
+//     const StatePacket *s_packet_ptr = sensor.state_packet_gen();
+//     comm.send(CommProtocol::PACKET_TYPE::STATE_AGN, s_packet_ptr);
+//     log_i("State feedback sent!");
+//     last_summary_time = millis();
+//   }
 #define SERVO_TEST
 #ifdef SERVO_TEST
   if (millis() - last_servo_time >= 10) {

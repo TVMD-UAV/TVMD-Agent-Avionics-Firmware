@@ -57,9 +57,9 @@ void CommClient::update() {
     webSocket.loop();
   } else {
     // Reconnecting WiFi
-
-    while (!WiFi.reconnect()) {
-      delay(500);
-    }
+    // WiFi.reconnect();
+    // while (!WiFi.status() == WL_CONNECTED) {
+    //   delay(500);
+    // }
   }
 }
