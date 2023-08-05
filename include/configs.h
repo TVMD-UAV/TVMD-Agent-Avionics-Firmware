@@ -8,4 +8,10 @@
 #define WIFI_PSWD "esp_ros_pingpong"
 #define COMM_PORT 11411
 
+#ifdef SERVER
+#else
+// Acting as an agent
+#define HAS_MOTOR
+#endif
+
 #endif

@@ -14,6 +14,17 @@ CommClient comm(11411, IPAddress(192, 168, 4, 1));
 #ifndef SERVER
 #include "SensorDriver.h"
 Sensors sensor;
+
+#include <MotorDriver.h>
+
+ServoMotorDriver x_servo(
+    ServoMotorConfigs(MotorConfigs(18, 1100, 1900, 1500, 180, 4096), 0));
+ServoMotorDriver y_servo(
+    ServoMotorConfigs(MotorConfigs(19, 1100, 1900, 1500, 180, 4096), 0));
+ESCMotorDriver
+    esc_p1(ESCMotorConfigs(MotorConfigs(32, 1000, 2000, 1500, 100, 4096), 95));
+ESCMotorDriver
+    esc_p2(ESCMotorConfigs(MotorConfigs(33, 1000, 2000, 1500, 100, 4096), 95));
 #endif
 
 void Wifi_connection_setup() {
@@ -32,6 +43,7 @@ void Wifi_connection_setup() {
 
 unsigned long last_publish_time = 0;
 unsigned long last_summary_time = 0;
+unsigned long last_servo_time = 0;
 
 TaskHandle_t websocket_task_handle;
 void websocket_loop(void *parameter) {
@@ -48,7 +60,15 @@ void setup() {
   packet.id = 0;
 #else
   sensor.init();
-//   sensor.init(14, 15);
+  //   sensor.init(14, 15);
+
+  x_servo.init();
+  y_servo.init();
+  esc_p1.init();
+  esc_p2.init();
+
+  x_servo.set_armed(true);
+  y_servo.set_armed(true);
 #endif
 
   comm.init();
@@ -85,6 +105,15 @@ void loop() {
     comm.send(CommProtocol::PACKET_TYPE::STATE_AGN, s_packet_ptr);
     last_summary_time = millis();
   }
+#define SERVO_TEST
+#ifdef SERVO_TEST
+  if (millis() - last_servo_time >= 10) {
+    float t = millis() / 1000.0;
+    x_servo.write(60.0f * sin(t));
+    y_servo.write(60.0f * cos(t));
+    last_servo_time = millis();
+  }
+#endif
 #endif
 };
 
