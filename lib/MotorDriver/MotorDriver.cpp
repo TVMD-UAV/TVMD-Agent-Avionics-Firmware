@@ -22,6 +22,9 @@ void ServoMotorDriver::init() {
   Servo::write((_config.pmin + _config.pmax) / 2);
 }
 
+/** Drive the servo to the target angle
+ * @param angle the target angle in degree
+ */
 void ServoMotorDriver::write(const float angle) {
   if (armed) {
     // unit mapping
@@ -46,6 +49,9 @@ void ESCMotorDriver::init() {
   Servo::write(_config.pmin);
 }
 
+/** Drive the esc (the propeller) to the target throttle
+ * @param throttle the target throttle (in percentage, 0~100)
+ */
 void ESCMotorDriver::write(const float throttle) {
   if (armed) {
     // unit mapping
