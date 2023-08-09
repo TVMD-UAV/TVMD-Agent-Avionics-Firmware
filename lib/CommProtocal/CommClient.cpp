@@ -22,8 +22,9 @@ void CommClient::init() {
       //   webSocket.sendTXT(payload);
 
       break;
-    case WStype_BIN:
-      webSocket.sendBIN(payload, length * sizeof(uint8_t));
+    case WStype_BIN: 
+      CommProtocol::callback_router(payload, length);
+      // webSocket.sendBIN(payload, length * sizeof(uint8_t));
       // TODO: The data type should be determined
 #ifdef COMM_DEBUG_PRINT
       //   memcpy((void *)&ping_packet, payload, length * sizeof(uint8_t));
@@ -41,6 +42,7 @@ void CommClient::init() {
     }
   });
   webSocket.setReconnectInterval(5000);
+  CommProtocol::init();
 }
 
 bool CommClient::send(PACKET_TYPE type, const Packet *const packet) {

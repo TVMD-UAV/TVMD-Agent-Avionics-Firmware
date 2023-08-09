@@ -36,29 +36,7 @@ void CommServer::init() {
           break;
 
         case WStype_BIN: {
-          switch (length * sizeof(uint8_t)) {
-          case sizeof(MsgPacket):
-            break;
-
-          case sizeof(CtrlPacket): {
-            CtrlPacket pong_packet;
-            memcpy((void *)&pong_packet, payload, length * sizeof(uint8_t));
-            ben.feed_data(pong_packet.id, pong_packet.time, micros());
-            break;
-          }
-
-          case sizeof(StatePacket): {
-            StatePacket pong_packet;
-            memcpy((void *)&pong_packet, payload, length * sizeof(uint8_t));
-            Serial.printf("[Acc] %f, %f, %f\n", pong_packet.acc.x,
-                          pong_packet.acc.y, pong_packet.acc.z);
-            break;
-          }
-
-          case sizeof(Packet):
-          default:
-            break;
-          }
+          CommProtocol::callback_router(payload, length);
         }
 #ifdef COMM_DEBUG_PRINT
           log_d("Receiving pong: id=%d, time=%ld, at %ld\n", pong_packet.id,
@@ -74,6 +52,7 @@ void CommServer::init() {
           break;
         }
       });
+  CommProtocol::init();
 }
 
 bool CommServer::send(PACKET_TYPE type, const Packet *const packet) {

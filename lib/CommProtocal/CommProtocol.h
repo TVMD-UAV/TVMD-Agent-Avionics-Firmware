@@ -3,6 +3,14 @@
 #include "benchmark.h"
 #include "configs.h"
 
+// Imported from WebSockets.h
+#ifdef ARDUINO_ARCH_AVR
+#error Version 2.x.x currently does not support Arduino with AVR since there is no support for std namespace of c++.
+#error Use Version 1.x.x. (ATmega branch)
+#else
+#include <functional>
+#endif
+
 #define COMM_PROTOCOL
 #include <WiFiClientSecure.h>
 
@@ -12,7 +20,8 @@
 
 struct Packet {
   uint32_t time;
-  int32_t id;
+  uint8_t id;
+  uint8_t agent_id;
   virtual ~Packet() = default; // To make Packet polymorphic, and thus a
                                // dynamic_cast can be used.
 };
@@ -25,6 +34,7 @@ struct CtrlPacket : public Packet {
 };
 
 struct StatePacket : public Packet {
+  uint8_t state;
   sensors_vec_t acc;
   sensors_vec_t gyro;
   float temperature;
@@ -32,9 +42,17 @@ struct StatePacket : public Packet {
   float altitude;
 };
 
+struct InstructPacket : public Packet {
+  uint32_t instruction;
+};
+
 struct MsgPacket : public Packet {
   uint8_t msg[400];
 };
+
+typedef std::function<void(CtrlPacket&)> CtrlCallbackFunc;
+typedef std::function<void(StatePacket&)> StateCallbackFunc;
+typedef std::function<void(InstructPacket&)> InstructCallbackFunc;
 
 class CommProtocol {
 public:
@@ -44,24 +62,36 @@ public:
 
   enum PACKET_TYPE { CTRL_CMDS = 0, CTRL_INST, STATE_AGN, MSG, RAW };
 
-  //   CommProtocol();
+  CommProtocol();
 
-  void virtual init() = 0;
+  void virtual init();
 
   virtual bool send(PACKET_TYPE type, const Packet *const packet) = 0;
 
-  virtual void update();
+  virtual void update() = 0;
+
+  void set_ctrl_callback(CtrlCallbackFunc func) {_ctrl_callback = func;};
+
+  void set_state_callback(StateCallbackFunc func) {_state_callback = func;};
+
+  void set_instruct_callback(InstructCallbackFunc func) {_instruct_callback = func;};
 
 protected:
+  CtrlCallbackFunc _ctrl_callback;
+  StateCallbackFunc _state_callback;
+  InstructCallbackFunc _instruct_callback;
+  
   virtual bool sendToBIN(uint8_t client_id, uint8_t *payload,
                          size_t length = 0) = 0;
 
   int get_packet_len(PACKET_TYPE type);
 
   void allocate_packet_by_length(Packet *packet, size_t length);
+
+  void callback_router(uint8_t *payload, size_t length);
 };
 
-class CommServer : CommProtocol {
+class CommServer : public CommProtocol {
 public:
   CommServer(uint16_t port);
 
@@ -88,7 +118,7 @@ private:
   WebSocketsServer webSocket;
 };
 
-class CommClient : CommProtocol {
+class CommClient : public CommProtocol {
 public:
   CommClient(uint16_t port, IPAddress serv_ip)
       : webSocket(), CommProtocol(), _port(port), _serv_addr(serv_ip){};
