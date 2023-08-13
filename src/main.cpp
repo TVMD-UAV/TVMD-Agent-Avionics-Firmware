@@ -2,59 +2,61 @@
 
 /*
  * TODO:
- * ctrl, state function callback
  * task scheduler
- * connection timeout solutions
  */
 
-unsigned long last_publish_time = 0;
-unsigned long last_servo_time = 0;
-unsigned long last_addr_time = 0;
+CtrlPacketArray packet;
 
 void setup() {
   Serial.begin(115200);
 
+  Core::init();
+  log_i("Program start!");
+
 #ifdef SERVER
   packet.time = 0;
   packet.id = 0;
-#else
-  Core::set_armed(true);
+  delay(1000);
+
+  InstructPacket idle_packet;
+  idle_packet.instruction = InstructPacket::INSTRUCT_TYPE::IDLE;
+
+  // wait for all agents alive
+  while (!Core::set_armed(true)) {
+    // send idle instructions
+    delay(500);
+    Core::comm.send(&idle_packet, sizeof(idle_packet));
+    Core::print_summary();
+  }
 #endif
 }
 
 void loop() {
+  static time_t last_publish_time = 0;
+  static time_t last_summary_time = 0;
 
-#ifdef SERVER
-  if (millis() - last_addr_time >= 500) {
-    display_connected_devices();
-    last_addr_time = millis();
+  if (millis() - last_summary_time >= 1000) {
+    Core::print_summary();
+    last_summary_time = millis();
   }
 
-  if (millis() - last_publish_time >= 20) {
+#ifdef SERVER
+  if (millis() - last_publish_time >= 40) {
     packet.id += 1;
     packet.time = micros();
 
-    comm.send(CommProtocol::PACKET_TYPE::CTRL_CMDS, &packet);
+    const float t = millis() / 1000.0;
+    for (int i = 0; i < MAX_NUM_AGENTS; i++) {
+      packet.packets[i].eta_x = 60.0f * sin(t);
+      packet.packets[i].eta_y = 60.0f * cos(t);
+      packet.packets[i].omega_p1 = 30.0f * (sin(t) + 1);
+      packet.packets[i].omega_p2 = 30.0f * (cos(t) + 1);
+      // TODO: Using sendto
+      Core::comm.send(&packet.packets[i], sizeof(CtrlPacket));
+    }
 
     last_publish_time = millis();
-    // display_connected_devices();
   }
-
-  if (millis() - last_summary_time >= 5000) {
-    Serial.printf("fps: %f, latency: %f, packet_lost: %d\n", comm.ben.get_fps(),
-                  comm.ben.get_latency(), comm.ben.packet_lost());
-    last_summary_time = millis();
-  }
-#else
-#define SERVO_TEST
-#ifdef SERVO_TEST
-  if (millis() - last_servo_time >= 10) {
-    float t = millis() / 1000.0;
-    Core::x_servo.write(60.0f * sin(t));
-    Core::y_servo.write(60.0f * cos(t));
-    last_servo_time = millis();
-  }
-#endif
 #endif
 };
 

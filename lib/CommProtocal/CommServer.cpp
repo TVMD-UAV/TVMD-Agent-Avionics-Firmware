@@ -1,31 +1,31 @@
 #include "CommProtocol.h"
 
-CommServer::CommServer(uint16_t port)
-    : webSocket(port), CommProtocol(), ben(100){};
+#ifdef SERVER
+uint8_t CommServer::agent_id_map[10];
+Benchmark CommServer::state_health[MAX_NUM_AGENTS];
 
-void CommServer::init() {
+CommServer::CommServer(uint16_t port) : webSocket(port), CommProtocol(){};
+
+void CommServer::init(uint8_t agent_id) {
   webSocket.begin();
   webSocket.onEvent(
       [&](uint8_t client_id, WStype_t type, uint8_t *payload, size_t length) {
-        // TODO: determine the data type
-        // Packet *pong_packet;
-        // CommProtocol::allocate_packet_by_length(pong_packet, length);
-
         switch (type) {
-        case WStype_DISCONNECTED:
+        case WStype_DISCONNECTED: {
+          log_d("Disconnect cliend id %d\n", client_id);
+          const uint8_t aid = agent_id_map[client_id];
+          set_connection_lost(aid);
+        }
 #ifdef COMM_DEBUG_PRINT
           log_d("[%u] Disconnected!\n", client_id);
 #endif
           break;
 
         case WStype_CONNECTED: {
-          IPAddress ip = webSocket.remoteIP(client_id);
 #ifdef COMM_DEBUG_PRINT
+          IPAddress ip = webSocket.remoteIP(client_id);
           log_d("[%u] Connected from %d.%d.%d.%d url: %s\n", client_id, ip[0],
                 ip[1], ip[2], ip[3], payload);
-
-      // send message to client
-      //   webSocket.sendTXT(client_id, "Connected");
 #endif
         } break;
 
@@ -36,14 +36,14 @@ void CommServer::init() {
           break;
 
         case WStype_BIN: {
-          CommProtocol::callback_router(payload, length);
+          callback_router(client_id, payload, length);
         }
 #ifdef COMM_DEBUG_PRINT
           log_d("Receiving pong: id=%d, time=%ld, at %ld\n", pong_packet.id,
                 pong_packet.time, micros());
 #endif
-
           break;
+
         case WStype_ERROR:
         case WStype_FRAGMENT_TEXT_START:
         case WStype_FRAGMENT_BIN_START:
@@ -52,16 +52,33 @@ void CommServer::init() {
           break;
         }
       });
-  CommProtocol::init();
+
+  for (int i = 0; i < MAX_NUM_AGENTS; i++) {
+    state_health[i] = Benchmark(NUM_HEALTH_CHECK);
+  }
+
+  CommProtocol::init(agent_id);
 }
 
-bool CommServer::send(PACKET_TYPE type, const Packet *const packet) {
-  uint32_t packet_len = CommProtocol::get_packet_len(type);
+void CommServer::callback_router(uint8_t client_id, uint8_t *payload,
+                                 size_t length) {
+  uint8_t agent_id = CommProtocol::callback_router(payload, length);
+
+  // set agent id map
+  agent_id_map[client_id] = agent_id;
+}
+
+bool CommServer::send(const Packet *const packet, const size_t len) {
 #ifdef COMM_DEBUG_PRINT
   log_d("Publishing ping: id=%d, time=%ld, at %ld\n", packet->id, packet->time,
         micros());
 #endif
-  return broadcastBIN((uint8_t *)packet, packet_len);
+  return broadcastBIN((uint8_t *)packet, len);
+}
+
+void CommServer::set_connection_lost(uint8_t agent_id) {
+  _disconnect_callback(agent_id);
 }
 
 void CommServer::update() { webSocket.loop(); }
+#endif

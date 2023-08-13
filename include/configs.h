@@ -1,15 +1,14 @@
 #ifndef CONFIGS_H
 #define CONFIGS_H
 
-
-// #define SERVER
 // #define WRITE_AGENT_ID
+// #define AGENT_ID_TO_WRITE 1
+#define MAX_NUM_AGENTS 2
 
 // 0: server
 // 1: normal agent
 // 2: Wire occupied agent
 // #define AGENT_ID_TO_WRITE 1
-
 
 // #define COMM_DEBUG_PRINT
 #define USE_SERIAL Serial
@@ -23,6 +22,9 @@ const IPAddress server_IP(192, 168, 4, 1);
 const IPAddress gateway(192, 168, 4, 1);
 const IPAddress subnet(255, 255, 255, 0);
 
+/* Websocket Connection Settings */
+#define MAX_TIME_OUT 1000
+#define NUM_HEALTH_CHECK 10
 
 /* Agent Settings */
 #ifdef WRITE_AGENT_ID
@@ -33,11 +35,9 @@ const IPAddress subnet(255, 255, 255, 0);
 #endif
 #endif
 
-
 /* EEPROM Settings */
 #define EEPROM_SIZE 1
 #define EEPROM_AGENT_ID_ADDR 0
-
 
 /* Motor Setup */
 #ifdef SERVER

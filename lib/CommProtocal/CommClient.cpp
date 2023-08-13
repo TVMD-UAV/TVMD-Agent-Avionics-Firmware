@@ -1,38 +1,40 @@
 #include "CommProtocol.h"
 
-void CommClient::init() {
+Benchmark CommClient::ctrl_health;
+Benchmark CommClient::state_health;
+
+void CommClient::init(uint8_t agent_id) {
   webSocket.begin(_serv_addr, _port, "/");
   webSocket.onEvent([&](WStype_t type, uint8_t *payload, size_t length) {
     Packet ping_packet;
     switch (type) {
     case WStype_DISCONNECTED:
+#ifdef COMM_DEBUG_PRINT
+#endif
       USE_SERIAL.printf("[WSc] Disconnected!, WiFi: %s\n",
                         (WiFi.isConnected() ? "Connected" : "Disconnected"));
+      set_connection_lost(0);
       break;
 
     case WStype_CONNECTED:
+#ifdef COMM_DEBUG_PRINT
       USE_SERIAL.printf("[WSc] Connected to url: %s\n", payload);
-
+#endif
       // send message to server when Connected
       webSocket.sendTXT("Connected");
       break;
 
     case WStype_TEXT:
-      USE_SERIAL.printf("[WSc] get text: %s\n", payload);
-      //   webSocket.sendTXT(payload);
-
-      break;
-    case WStype_BIN: 
-      CommProtocol::callback_router(payload, length);
-      // webSocket.sendBIN(payload, length * sizeof(uint8_t));
-      // TODO: The data type should be determined
 #ifdef COMM_DEBUG_PRINT
-      //   memcpy((void *)&ping_packet, payload, length * sizeof(uint8_t));
-      //   USE_SERIAL.printf("Receiving pong: id=%d, time=%ld, at %ld\n",
-      //                     ping_packet.id, ping_packet.time, micros());
+      USE_SERIAL.printf("[WSc] get text: %s\n", payload);
 #endif
-
       break;
+
+    case WStype_BIN:
+      last_update_time = millis();
+      CommProtocol::callback_router(payload, length);
+      break;
+
     case WStype_ERROR:
     case WStype_FRAGMENT_TEXT_START:
     case WStype_FRAGMENT_BIN_START:
@@ -42,26 +44,34 @@ void CommClient::init() {
     }
   });
   webSocket.setReconnectInterval(5000);
-  CommProtocol::init();
+
+  ctrl_health = Benchmark(NUM_HEALTH_CHECK);
+  state_health = Benchmark(NUM_HEALTH_CHECK);
+
+  CommProtocol::init(agent_id);
 }
 
-bool CommClient::send(PACKET_TYPE type, const Packet *const packet) {
-
+bool CommClient::send(const Packet *const packet, const size_t len) {
   if (WiFi.status() == WL_CONNECTED & webSocket.isConnected()) {
-    uint32_t packet_len = CommProtocol::get_packet_len(type);
-    return sendToBIN(0, (uint8_t *)packet, packet_len);
+    return sendToBIN(0, (uint8_t *)packet, len);
   }
   return false;
 }
 
+void CommClient::set_connection_lost(uint8_t client_id) {
+  _disconnect_callback(0);
+}
+
 void CommClient::update() {
   if (WiFi.isConnected()) {
+    // websocket routine
     webSocket.loop();
+
+    // websocket connection timeout
+    if (millis() - last_update_time > MAX_TIME_OUT)
+      set_connection_lost(0);
   } else {
-    // Reconnecting WiFi
-    // WiFi.reconnect();
-    // while (!WiFi.status() == WL_CONNECTED) {
-    //   delay(500);
-    // }
+    // WiFi lost
+    set_connection_lost(0);
   }
 }

@@ -29,22 +29,21 @@ void Sensors::init(int sda, int scl) {
           baro.sensorID());
 }
 
-const StatePacket *const Sensors::state_packet_gen(uint8_t _state) {
+bool Sensors::state_packet_gen(StatePacket *const _packet) {
   if (imu_enabled) {
     sensors_event_t a, g, temp;
     imu.getEvent(&a, &g, &temp);
-    s_packet.acc = a.acceleration;
-    s_packet.gyro = g.gyro;
-    s_packet.temperature = temp.temperature;
+    _packet->acc = a.acceleration;
+    _packet->gyro = g.gyro;
+    _packet->temperature = temp.temperature;
   }
 
   if (baro_enabled) {
-    s_packet.pressure = baro.readPressure();
+    _packet->pressure = baro.readPressure();
     const float seaLevelhPa = 1013.25;
-    s_packet.altitude = PRESSURE_TO_ALTITUDE(s_packet.pressure, seaLevelhPa);
-    //   44330 * (1.0 - pow((s_packet.pressure / 100) / seaLevelhPa, 0.1903));
+    _packet->altitude = PRESSURE_TO_ALTITUDE(_packet->pressure, seaLevelhPa);
+    //   44330 * (1.0 - pow((_packet->pressure / 100) / seaLevelhPa, 0.1903));
   }
-  s_packet.state = _state;
 
-  return &s_packet;
+  return true;
 }

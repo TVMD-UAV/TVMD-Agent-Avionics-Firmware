@@ -20,10 +20,9 @@ public:
 
   void init(int sda = 21, int scl = 22);
 
-  const StatePacket *const state_packet_gen(uint8_t _state);
+  bool state_packet_gen(StatePacket *const _packet);
 
 private:
-  StatePacket s_packet;
   bool imu_enabled;
   bool baro_enabled;
 };

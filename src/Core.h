@@ -8,18 +8,16 @@
 #include <EEPROM.h>
 
 #ifdef SERVER
-CtrlPacket packet;
+
 #else
 #include "SensorDriver.h"
 #include <MotorDriver.h>
 #endif
 
-#endif 
+#endif
 
-class Core{
+class Core {
 public:
-  enum DRONE_STATE {STARTING=0, INITED, LOST_CONN, ARMED};
-
 #ifdef SERVER
   static CommServer comm;
 #else
@@ -34,42 +32,48 @@ public:
   static ESCMotorDriver esc_p2;
 #endif
 
-  Core();
-
   static void init();
 
-  static void Wifi_connection_setup();
+  static bool set_armed(bool armed);
 
-  static void set_armed(bool armed);
+  static void send_ctrl(const CtrlPacketArray *const packet);
 
-  static int get_agent_id();
+  static void print_summary();
 
-private:
-  static DRONE_STATE _state;
+  static bool set_state(AGENT_STATE target);
+
+  static AGENT_STATE get_current_state() { return _state; };
+
+protected:
   static uint8_t _agent_id;
 
+  static AGENT_STATE _state;
+
+#ifdef SERVER
+  // agent data
+  static AgentData agents[MAX_NUM_AGENTS];
+#else
+  // sensor data
+  static StatePacket packet;
+  static CtrlPacket _ctrl_packet;
+#endif
+
+  // for initialization
+  static void Wifi_connection_setup();
+
+  // Loading agent id from EEPROM
+  static int get_agent_id();
+
+#ifdef SERVER
+  static bool check_all_agent_alive(AGENT_STATE target = AGENT_STATE::INITED);
+#endif
+
+private:
   static TaskHandle_t websocket_task_handle;
-  static void websocket_loop(void *parameter) {
-    while (true) {
-      comm.update();
-      // To allow other threads have chances to join
-      delay(1);
-    }
-  }
+  static void websocket_loop(void *parameter);
 
 #ifndef SERVER
   static TaskHandle_t state_feedback_handle;
-  static void state_feedback(void *parameter) {
-    static unsigned long last_summary_time = 0;
-    while (true) {
-      if (millis() - last_summary_time >= 500) {
-        const StatePacket *s_packet_ptr = sensor.state_packet_gen(_state);
-        if (comm.send(CommProtocol::PACKET_TYPE::STATE_AGN, s_packet_ptr))
-          log_i("State feedback sent!");
-        last_summary_time = millis();
-      }
-      delay(10);
-    }
-  }
+  static void state_feedback(void *parameter);
 #endif
 };
