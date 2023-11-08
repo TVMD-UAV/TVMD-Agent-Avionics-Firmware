@@ -1,10 +1,33 @@
 #ifndef SENSOR_DRIVER_H
 #define SENSOR_DRIVER_H
 
+#include "configs.h"
+
+// Choose the sensors to use
+#define USE_ICM20948_SPI      // For Single Agent Avionic board
+// #define USE_ICM20948_I2C   // Not implemented yet
+// #define USE_MPU6050        // Using I2C for MPU6050
+
+#define USE_IMU_INT
+#define USE_IMU_DMP
+
+#define USE_BMP280_SPI
+// #define USE_BMP280_I2C
+
 #include <Adafruit_BMP280.h>
-#include <Adafruit_MPU6050.h>
+
+#ifdef USE_MPU6050
+  #include <Adafruit_MPU6050.h>
+#elif defined(USE_ICM20948_SPI)
+  #include "ICM_20948.h"
+#else 
+  #error "No IMU selected"
+#endif
+
 #include <Adafruit_Sensor.h>
+#ifdef USE_BMP280_I2C
 #include <Wire.h>
+#endif
 
 #include "CommProtocol.h"
 
@@ -13,18 +36,49 @@
 
 class Sensors {
 public:
+
+  struct SensorData{
+    double orientation[4];
+    float acc[3];
+    float gyro[3];
+    float compass[3];
+    float temperature;
+    float pressure;
+    float altitude;
+  };
+
+#ifdef USE_MPU6050
   Adafruit_MPU6050 imu;
+#elif defined(USE_ICM20948_SPI)
+  ICM_20948_SPI imu;
+#endif
+
   Adafruit_BMP280 baro;
 
   Sensors();
 
-  void init(int sda = 21, int scl = 22);
+  void init(int sda = 21, int scl = 22, int update_rate = 50);
 
   bool state_packet_gen(StatePacket *const _packet);
 
+  void update();
+
+protected:
+  SensorData _data;
+
 private:
+  uint8_t _update_interval; // ms
+  bool _sensor_updated;
+
   bool imu_enabled;
   bool baro_enabled;
+
+  static volatile bool isrFired;
+  static volatile bool sensorSleep;
+  static volatile bool canToggle;
+
+  bool imu_init();
+  static void imu_int_handler();
 };
 
 #endif

@@ -351,7 +351,11 @@ void Core::state_feedback(void *parameter) {
         last_summary_time = millis();
       }
     }
-    delay(10);
+    
+    sensor.update();
+
+    // pass control to another task waiting to be executed
+    yield();
   }
 }
 #endif
@@ -375,7 +379,8 @@ void Core::websocket_loop(void *parameter) {
 #endif
 
     // To allow other threads have chances to join
-    delay(1);
+    // delay(1);
+    yield();
   }
 }
 

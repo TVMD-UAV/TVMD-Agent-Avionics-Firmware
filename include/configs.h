@@ -1,6 +1,8 @@
 #ifndef CONFIGS_H
 #define CONFIGS_H
 
+#include <IPAddress.h>
+
 // #define WRITE_AGENT_ID
 // #define AGENT_ID_TO_WRITE 1
 #define MAX_NUM_AGENTS 2
@@ -44,6 +46,34 @@ const IPAddress subnet(255, 255, 255, 0);
 #else
 // Acting as an agent
 #define HAS_MOTOR
+#define MOTOR_X_SERVO_PIN 39
+#define MOTOR_Y_SERVO_PIN 40
+#define MOTOR_ESC_P1_PIN 41
+#define MOTOR_ESC_P2_PIN 42
 #endif
+
+/* IMU Settings */
+
+// Default using HSPI
+#define SPI_PORT SPI // Your desired SPI port.       Used only when "USE_SPI" is defined
+#define IMU_SCK_PIN 36
+#define IMU_MISO_PIN 37
+#define IMU_MOSI_PIN 35
+#define IMU_CS_PIN 38     // Which pin you connect CS to. Used only when "USE_SPI" is defined
+#define IMU_INT_PIN 13    // Which pin you connect INT to
+
+/* BMP Settings */
+#define BMP_CS_PIN 14
+
+/* Indicator Settings */
+#define LED_COUNT 2
+#define LED_PIN 21
+
+
+/* Debugging */
+#define SERIAL_PORT Serial
+
+/* IMU Debugging */
+#define IMU_DEBUG_PRINT
 
 #endif
