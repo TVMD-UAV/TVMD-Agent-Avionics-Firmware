@@ -14,10 +14,13 @@
 #include <MotorDriver.h>
 #endif
 
-#endif
+#include "Indicator.h"
+
 
 class Core {
 public:
+  static Indicator indicator;
+  
 #ifdef SERVER
   static CommServer comm;
 #else
@@ -77,3 +80,5 @@ private:
   static void state_feedback(void *parameter);
 #endif
 };
+
+#endif

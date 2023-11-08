@@ -18,16 +18,20 @@ CommClient Core::comm = CommClient(COMM_PORT, server_IP);
 Sensors Core::sensor = Sensors();
 
 ServoMotorDriver Core::x_servo(
-    ServoMotorConfigs(MotorConfigs(18, 1100, 1900, 1500, 180, 4096), 0));
+    ServoMotorConfigs(MotorConfigs(MOTOR_X_SERVO_PIN, 1100, 1900, 1500, 180, 4096), 0));
 ServoMotorDriver Core::y_servo(
-    ServoMotorConfigs(MotorConfigs(19, 1100, 1900, 1500, 180, 4096), 0));
+    ServoMotorConfigs(MotorConfigs(MOTOR_Y_SERVO_PIN, 1100, 1900, 1500, 180, 4096), 0));
 ESCMotorDriver Core::esc_p1(
-    ESCMotorConfigs(MotorConfigs(32, 1000, 2000, 1500, 100, 4096), 95));
+    ESCMotorConfigs(MotorConfigs(MOTOR_ESC_P1_PIN, 1000, 2000, 1500, 100, 4096), 95));
 ESCMotorDriver Core::esc_p2(
-    ESCMotorConfigs(MotorConfigs(33, 1000, 2000, 1500, 100, 4096), 95));
+    ESCMotorConfigs(MotorConfigs(MOTOR_ESC_P2_PIN, 1000, 2000, 1500, 100, 4096), 95));
 #endif
 
+Indicator Core::indicator;
+
 void Core::init() {
+  indicator.set_color(0, 120, 0, 0);
+
   get_agent_id();
 
   Wifi_connection_setup();
@@ -37,6 +41,7 @@ void Core::init() {
     sensor.init(14, 15);
   else
     sensor.init();
+  indicator.set_color(1, 0, 120, 0);
 
   x_servo.init();
   y_servo.init();
