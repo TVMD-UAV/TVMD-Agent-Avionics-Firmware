@@ -3,6 +3,7 @@
 
 #include "configs.h"
 #include <Adafruit_NeoPixel.h>
+#include "freertos/semphr.h"
 
 #define INDICATOR_RED 0x00FF0000
 #define INDICATOR_GREEN 0x0000FF00
@@ -36,6 +37,7 @@ public:
     static const uint8_t UPDATE_INTERVAL = 50; // ms
 
     Indicator(): pixels(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800) {
+        _state_mutex = xSemaphoreCreateMutex();
         pixels.begin();
         pixels.clear();
         pixels.setBrightness(128);
@@ -49,9 +51,12 @@ public:
     void set_led_state(LED_ID led_id, LED_STATE state, uint32_t color) {
         for (uint8_t i=0; (i < LED_COUNT) && (i < LED_ID::BOTH-1); ++i) {
             if ((led_id >> i) & 1 ) { 
-                _state[i] = state;
-                _phase[i] = 0;
-                _color[i] = color;
+                if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+                    _state[i] = state;
+                    _phase[i] = 0;
+                    _color[i] = color;
+                    xSemaphoreGive(_state_mutex);
+                }
             }
         }
     };
@@ -59,6 +64,7 @@ public:
     void update();
 
 protected:
+    SemaphoreHandle_t _state_mutex = NULL;
     Adafruit_NeoPixel pixels;
     LED_STATE _state[LED_COUNT];
 
