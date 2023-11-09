@@ -10,13 +10,15 @@ Sensors::Sensors() : imu_enabled(false), baro_enabled(false),
 #endif
 {}
 
-void Sensors::init(int sda, int scl, int update_rate) {
+int Sensors::init(int update_rate) {
   _sensor_updated = false;
   _update_interval = 1000 / update_rate;
 
   SPI_PORT.begin(IMU_SCK_PIN, IMU_MISO_PIN, IMU_MOSI_PIN, IMU_CS_PIN);
 
-  imu_init();
+  if (imu_init() != SENSOR_OK) {
+    return IMU_INIT_ERROR;
+  }
 
   #ifdef USE_BMP280_SPI
   if (baro.begin()) {
@@ -31,34 +33,22 @@ void Sensors::init(int sda, int scl, int update_rate) {
 
     baro_enabled = true;
     log_i("BMP280 initialized!");
-  } else
+  } else {
     log_e("Could not find a valid BMP280 sensor, check wiring or "
           "try a different address!, SensorID was: 0x%x",
           baro.sensorID());
+    return BARO_INIT_ERROR;
+  }
+  
+  return SENSOR_OK;
 }
 
-bool Sensors::state_packet_gen(StatePacket *const _packet) {
-  if (imu_enabled) {
-    #ifdef USE_MPU6050
-    sensors_event_t a, g, temp;
-    imu.getEvent(&a, &g, &temp);
-    _packet->acc = a.acceleration;
-    _packet->gyro = g.gyro;
-    _packet->temperature = temp.temperature;
-    #endif // USE_MPU6050
-  }
-
-  if (baro_enabled) {
-    _packet->pressure = baro.readPressure();
-    const float seaLevelhPa = 1013.25;
-    _packet->altitude = PRESSURE_TO_ALTITUDE(_packet->pressure, seaLevelhPa);
-    //   44330 * (1.0 - pow((_packet->pressure / 100) / seaLevelhPa, 0.1903));
-  }
-
-  return true;
+void Sensors::state_packet_gen(StatePacket *const _packet) {
+  memcpy(&(_packet->s), &_data, sizeof(_data));
+  _sensor_updated = false;
 }
 
-bool Sensors::imu_init(){
+int Sensors::imu_init(){
   // IMU Setup
 #ifdef USE_MPU6050
   // TODO: sda and scl are not defined here.
@@ -68,7 +58,7 @@ bool Sensors::imu_init(){
     imu.setGyroRange(MPU6050_RANGE_500_DEG);
     imu.setFilterBandwidth(MPU6050_BAND_5_HZ);
     imu_enabled = true;
-    log_i("MPU6050 initialized!");
+    log_d("MPU6050 initialized!");
   } else
     log_e("Failed to find MPU6050 chip");
 #elif defined(USE_ICM20948_SPI)
@@ -77,23 +67,16 @@ bool Sensors::imu_init(){
   #endif
 
   bool initialized = false;
-  while (!initialized)
-  {
-
+  for (int i=0; !initialized && i < 5; ++i) {
     imu.begin(IMU_CS_PIN, SPI_PORT);
-
-    SERIAL_PORT.print(F("Initialization of the sensor returned: "));
-    SERIAL_PORT.println(imu.statusString());
-    if (imu.status != ICM_20948_Stat_Ok)
-    {
-      SERIAL_PORT.println("Trying again...");
+    if (imu.status != ICM_20948_Stat_Ok) {
+      log_e("Failed to initialize IMU, sensor status: %s", imu.statusString());
       delay(500);
     }
     else
-    {
       initialized = true;
-    }
   }
+  if (!initialized) return SENSOR_ERROR::IMU_INIT_ERROR;
 
   bool success = true; // Use success to show if the DMP configuration was successful
   // Initializing ICM DMP
@@ -176,22 +159,14 @@ bool Sensors::imu_init(){
     imu.cfgIntActiveLow(true);  // Active low to be compatible with the breakout board's pullup resistor
     imu.cfgIntOpenDrain(false); // Push-pull, though open-drain would also work thanks to the pull-up resistors on the breakout
     imu.cfgIntLatch(true);      // Latch the interrupt until cleared
-    SERIAL_PORT.print(F("cfgIntLatch returned: "));
-    SERIAL_PORT.println(imu.statusString());
+    log_i("cfgIntLatch returned: %s", imu.statusString());
 
     // Check success
     if (success)
-    {
-  #ifndef QUAT_ANIMATION
-      SERIAL_PORT.println(F("DMP enabled!"));
-  #endif
-    }
-    else
-    {
-      SERIAL_PORT.println(F("Enable DMP failed!"));
-      SERIAL_PORT.println(F("Please check that you have uncommented line 29 (#define ICM_20948_USE_DMP) in ICM_20948_C.h..."));
-      while (1)
-        ; // Do nothing more
+      log_i("DMP enabled!");
+    else {
+      log_i("Enable DMP failed! Please check that you have uncommented line 29 (#define ICM_20948_USE_DMP) in ICM_20948_C.h...");
+      return SENSOR_ERROR::DMP_INIT_ERROR;
     }
 #endif // USE_IMU_DMP
 
@@ -202,8 +177,7 @@ bool Sensors::imu_init(){
 
     // Enable interrupts on dmp ready
     imu.intEnableDMP(true);
-    SERIAL_PORT.print(F("intEnableDMP returned: "));
-    SERIAL_PORT.println(imu.statusString());
+    log_d("intEnableDMP returned: %s", imu.statusString());
 
     //  // Note: weirdness with the Wake on Motion interrupt being always enabled.....
     //  uint8_t zero_0 = 0xFF;
@@ -211,14 +185,11 @@ bool Sensors::imu_init(){
     //  SERIAL_PORT.print("INT_EN was: 0x"); SERIAL_PORT.println(zero_0, HEX);
     //  zero_0 = 0x00;
     //  ICM_20948_execute_w( &imu._device, AGB0_REG_INT_ENABLE, (uint8_t*)&zero_0, sizeof(uint8_t) );
-
-    SERIAL_PORT.println();
-    SERIAL_PORT.println(F("Configuration complete!"));
 #endif // USE_IMU_INT
   
   imu_enabled = true;
 
-  return success;
+  return SENSOR_ERROR::SENSOR_OK;
 #endif
 }
 
@@ -235,7 +206,17 @@ void Sensors::update() {
 
   // TODO: load data into packet
   if (imu_enabled) {
-    #ifdef USE_ICM20948_SPI
+    #ifdef USE_MPU6050
+    sensors_event_t a, g, temp;
+    imu.getEvent(&a, &g, &temp);
+    _data.acc.x = a.acceleration.x;
+    _data.acc.y = a.acceleration.y;
+    _data.acc.z = a.acceleration.z;
+    _data.gyro.x = g.gyro.x;
+    _data.gyro.y = g.gyro.y;
+    _data.gyro.z = g.gyro.z;
+    _data.temperature = temp.temperature;
+    #elif defined(USE_ICM20948_SPI)
     if (isrFired) {
       isrFired = false;
       // Read any DMP data waiting in the FIFO
@@ -270,10 +251,10 @@ void Sensors::update() {
           const double q3 = ((double)data.Quat9.Data.Q3) / 1073741824.0; // Convert to double. Divide by 2^30
           const double q0 = sqrt(1.0 - ((q1 * q1) + (q2 * q2) + (q3 * q3)));
 
-          _data.orientation[0] = q0;
-          _data.orientation[1] = q1;
-          _data.orientation[2] = q2;
-          _data.orientation[3] = q3;
+          _data.orientation.q0 = q0;
+          _data.orientation.q1 = q1;
+          _data.orientation.q2 = q2;
+          _data.orientation.q3 = q3;
 
           // SERIAL_PORT.print(F("Q1:"));
           // SERIAL_PORT.print(q1, 3);
@@ -287,23 +268,23 @@ void Sensors::update() {
 
         if ((data.header & DMP_header_bitmap_Accel) > 0) // We have asked for orientation data so we should receive Quat9
         {
-          _data.acc[0] = (float)data.Raw_Accel.Data.X;
-          _data.acc[1] = (float)data.Raw_Accel.Data.Y;
-          _data.acc[2] = (float)data.Raw_Accel.Data.Z;
+          _data.acc.x = (float)data.Raw_Accel.Data.X;
+          _data.acc.y = (float)data.Raw_Accel.Data.Y;
+          _data.acc.z = (float)data.Raw_Accel.Data.Z;
         }
 
         if ((data.header & DMP_header_bitmap_Gyro) > 0) // We have asked for orientation data so we should receive Quat9
         {
-          _data.gyro[0] = (float)data.Raw_Gyro.Data.X;
-          _data.gyro[1] = (float)data.Raw_Gyro.Data.Y;
-          _data.gyro[2] = (float)data.Raw_Gyro.Data.Z;
+          _data.gyro.x = (float)data.Raw_Gyro.Data.X;
+          _data.gyro.y = (float)data.Raw_Gyro.Data.Y;
+          _data.gyro.z = (float)data.Raw_Gyro.Data.Z;
         }
 
         if ((data.header & DMP_header_bitmap_Compass) > 0) // We have asked for orientation data so we should receive Quat9
         {
-          _data.compass[0] = (float)data.Compass.Data.X;
-          _data.compass[1] = (float)data.Compass.Data.Y;
-          _data.compass[2] = (float)data.Compass.Data.Z;
+          _data.compass.x = (float)data.Compass.Data.X;
+          _data.compass.y = (float)data.Compass.Data.Y;
+          _data.compass.z = (float)data.Compass.Data.Z;
         }
       }
 
@@ -319,11 +300,11 @@ void Sensors::update() {
     last_update_time = millis();
     _sensor_updated = true;
 
-    SERIAL_PORT.printf("Acc: %6.0f, %6.0f, %6.0f, Gyro: %6.0f, %6.0f, %6.0f, Comp: %6.0f, %6.0f, %6.0f, Orient: %6.2f, %6.2f, %6.2f, Pres: %6.2f, Alt: %6.2f \n", 
-      _data.acc[0], _data.acc[1], _data.acc[2], 
-      _data.gyro[0], _data.gyro[1], _data.gyro[2], 
-      _data.compass[0], _data.compass[1], _data.compass[2], 
-      _data.orientation[0], _data.orientation[1], _data.orientation[2], 
-      _data.pressure, _data.altitude);
+    // SERIAL_PORT.printf("Acc: %6.0f, %6.0f, %6.0f, Gyro: %6.0f, %6.0f, %6.0f, Comp: %6.0f, %6.0f, %6.0f, Orient: %6.2f, %6.2f, %6.2f, Pres: %6.2f, Alt: %6.2f \n", 
+    //   _data.acc[0], _data.acc[1], _data.acc[2], 
+    //   _data.gyro[0], _data.gyro[1], _data.gyro[2], 
+    //   _data.compass[0], _data.compass[1], _data.compass[2], 
+    //   _data.orientation[0], _data.orientation[1], _data.orientation[2], 
+    //   _data.pressure, _data.altitude);
   }
 }

@@ -7,6 +7,7 @@
 
 #include <EEPROM.h>
 
+#define COMM_SETUP
 #ifdef SERVER
 
 #else
@@ -20,7 +21,7 @@
 class Core {
 public:
   static Indicator indicator;
-  
+
 #ifdef SERVER
   static CommServer comm;
 #else

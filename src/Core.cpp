@@ -63,6 +63,7 @@ void Core::init() {
 #endif
   indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::FAST, INDICATOR_GREEN);
 
+#ifdef COMM_SETUP // Initialize websocket services
 #ifdef SERVER
   /* Setup ctrl callback functions */
   comm.set_ctrl_callback([](CtrlPacket &packet) {
@@ -104,12 +105,14 @@ void Core::init() {
       // relive
       set_state(AGENT_STATE::INITED);
     } else {
-      _ctrl_packet = packet;
-      Core::x_servo.write(packet.eta_x);
-      Core::y_servo.write(packet.eta_y);
-      Core::esc_p1.write(packet.omega_p1);
-      Core::esc_p2.write(packet.omega_p2);
-      CommClient::ctrl_health.feed_data(packet.id, packet.time, micros());
+      if (packet.agent_id == _agent_id) {
+        _ctrl_packet = packet;
+        Core::x_servo.write(packet.eta_x);
+        Core::y_servo.write(packet.eta_y);
+        Core::esc_p1.write(packet.omega_p1);
+        Core::esc_p2.write(packet.omega_p2);
+        CommClient::ctrl_health.feed_data(packet.id, packet.time, micros());
+      }
     }
   });
 
@@ -150,6 +153,7 @@ void Core::init() {
 
   comm.init(_agent_id);
   log_v("Communication init!");
+#endif 
 
   // Initialize daemon tasks
   indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::LONG, INDICATOR_GREEN);
@@ -366,23 +370,26 @@ bool Core::set_state(AGENT_STATE target) {
  */
 #ifndef SERVER
 void Core::state_feedback(void *parameter) {
+  
   static time_t last_summary_time = 0;
   while (true) {
-    if (millis() - last_summary_time >= 500) {
-      // write sensor data into packet
-      bool ret = sensor.state_packet_gen(&packet);
+    sensor.update();
+
+    // Beacon message to server
+    #ifdef COMM_SETUP
+    if (sensor.available()){
+      sensor.state_packet_gen(&packet);
       packet.state = _state;
       packet.agent_id = _agent_id;
 
       // send the packet to server
-      if (ret && comm.send(&packet, sizeof(packet))) {
+      if (comm.send(&packet, sizeof(packet))) {
         CommClient::state_health.feed_data(packet.id, micros(), micros());
         last_summary_time = millis();
       }
     }
+    #endif
     
-    sensor.update();
-
     // pass control to another task waiting to be executed
     yield();
   }
@@ -390,6 +397,7 @@ void Core::state_feedback(void *parameter) {
 #endif
 
 void Core::websocket_loop(void *parameter) {
+#ifdef COMM_SETUP
   for (;;) {
     comm.update();
 
@@ -408,9 +416,9 @@ void Core::websocket_loop(void *parameter) {
 #endif
 
     // To allow other threads have chances to join
-    // delay(1);
     yield();
   }
+#endif
 }
 
 #ifdef SERVER

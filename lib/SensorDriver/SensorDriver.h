@@ -30,6 +30,7 @@
 #endif
 
 #include "CommProtocol.h"
+#include "PacketTypes.h"
 
 #define PRESSURE_TO_ALTITUDE(PRESSURE, SEA_LEVEL_HPA)                          \
   (44330 * (1.0 - pow(((PRESSURE) / 100) / (SEA_LEVEL_HPA), 0.1903)))
@@ -37,14 +38,11 @@
 class Sensors {
 public:
 
-  struct SensorData{
-    double orientation[4];
-    float acc[3];
-    float gyro[3];
-    float compass[3];
-    float temperature;
-    float pressure;
-    float altitude;
+  enum SENSOR_ERROR {
+    SENSOR_OK = 0,
+    IMU_INIT_ERROR,
+    DMP_INIT_ERROR,
+    BARO_INIT_ERROR,
   };
 
 #ifdef USE_MPU6050
@@ -57,9 +55,11 @@ public:
 
   Sensors();
 
-  void init(int sda = 21, int scl = 22, int update_rate = 50);
+  int init(int update_rate = 50);
 
-  bool state_packet_gen(StatePacket *const _packet);
+  void state_packet_gen(StatePacket *const _packet);
+
+  bool available() { return _sensor_updated; };
 
   void update();
 
@@ -77,7 +77,7 @@ private:
   static volatile bool sensorSleep;
   static volatile bool canToggle;
 
-  bool imu_init();
+  int imu_init();
   static void imu_int_handler();
 };
 
