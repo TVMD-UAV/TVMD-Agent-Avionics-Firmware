@@ -79,6 +79,14 @@ private:
   static TaskHandle_t state_feedback_handle;
   static void state_feedback(void *parameter);
 #endif
+
+  static TaskHandle_t indicator_task_handle;
+  static void indicator_update(void *parameter){
+    for (;;) {
+      indicator.update();
+      yield();
+    }
+  };
 };
 
 #endif

@@ -3,6 +3,7 @@
 uint8_t Core::_agent_id;
 AGENT_STATE Core::_state;
 TaskHandle_t Core::websocket_task_handle;
+TaskHandle_t Core::indicator_task_handle;
 #define COMM_DEBUG_PRINT
 
 #ifdef SERVER
@@ -30,24 +31,37 @@ ESCMotorDriver Core::esc_p2(
 Indicator Core::indicator;
 
 void Core::init() {
-  indicator.set_color(0, 120, 0, 0);
+  indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::FLASHING, INDICATOR_GREEN);
+
+  // Attaching indicator task to core 0 with the minimum task priority (1)
+  xTaskCreatePinnedToCore(indicator_update, /* Function to implement the task */
+                          "indicator_updating",   /* Name of the task */
+                          2000,                   /* Stack size in words */
+                          NULL,                   /* Task input parameter */
+                          1,                      /* Priority of the task */
+                          &indicator_task_handle, /* Task handle. */
+                          0); /* Core where the task should run */
 
   get_agent_id();
 
+  // Waiting for WiFi connection
+  indicator.set_led_state(Indicator::LED_ID::COMM, Indicator::DOUBLE_IMPULSE, INDICATOR_GREEN);
   Wifi_connection_setup();
 
-#ifndef SERVER
-  if (_agent_id == 2)
-    sensor.init(14, 15);
-  else
-    sensor.init();
-  indicator.set_color(1, 0, 120, 0);
+#ifndef SERVER // Initialize sensors and actuators
+  if (sensor.init() != Sensors::SENSOR_ERROR::SENSOR_OK){
+    log_e("Sensor init failed!");
+    indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::FAST, INDICATOR_RED);  
+    while (true) 
+      ;
+  };
 
   x_servo.init();
   y_servo.init();
   esc_p1.init();
   esc_p2.init();
 #endif
+  indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::FAST, INDICATOR_GREEN);
 
 #ifdef SERVER
   /* Setup ctrl callback functions */
@@ -137,6 +151,9 @@ void Core::init() {
   comm.init(_agent_id);
   log_v("Communication init!");
 
+  // Initialize daemon tasks
+  indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::LONG, INDICATOR_GREEN);
+
 #pragma region[task hook]
   // TODO: check stack usages
   xTaskCreatePinnedToCore(websocket_loop, /* Function to implement the task */
@@ -152,12 +169,19 @@ void Core::init() {
                           "state_feedback", /* Name of the task */
                           5000,             /* Stack size in words */
                           NULL,             /* Task input parameter */
-                          10,               /* Priority of the task */
+                          5,                /* Priority of the task */
                           &state_feedback_handle, /* Task handle. */
                           1); /* Core where the task should run */
 #endif
+  
+  // System start up complete
+  indicator.set_led_state(Indicator::LED_ID::COMM, Indicator::IMPULSE, INDICATOR_BLUE);
+  indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_BLUE);
   log_v("Thread init!");
+
 #pragma endregion[task hook]
+
+
   // TODO: inited is not equal to ready (maybe not connected)
   set_state(AGENT_STATE::INITED);
 }
