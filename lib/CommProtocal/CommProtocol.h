@@ -11,6 +11,7 @@
 #include <functional>
 #endif
 
+// #define COMM_DEBUG_PRINT
 #define COMM_PROTOCOL
 #include <WiFiClientSecure.h>
 
@@ -83,6 +84,14 @@ protected:
   uint8_t callback_router(uint8_t *payload, size_t length);
 
   virtual inline void set_connection_lost(uint8_t agent_id) = 0;
+
+  bool check_agent_id_valid(uint8_t agent_id) {
+    #ifdef SERVER
+    return agent_id > 0 && agent_id <= MAX_NUM_AGENTS;
+    #else 
+    return agent_id == 0;
+    #endif
+  };
 };
 
 /* Communication server for navigator based on Websocket
@@ -90,8 +99,8 @@ protected:
  */
 class CommServer : public CommProtocol {
 public:
-  static uint8_t agent_id_map[10];
   static Benchmark state_health[MAX_NUM_AGENTS];
+  static const uint8_t MAX_NUM_CID = 10;
 
   CommServer(uint16_t port);
 
@@ -100,9 +109,30 @@ public:
 
   virtual bool send(const Packet *const packet, const size_t len);
 
-  virtual void update();
+  virtual void update() { webSocket.loop(); };
+
+  /**
+   * This function query the agent id from agent id map starting from
+   * the given cid (including itself). Once an active agent is found, 
+   * the agent id is returned and the corresponding client id is stored 
+   * in cid.
+   * 
+   * @param cid The client id to start the query
+   * @return The agent id of the found agent. -1 if no active agent is found.
+   */
+  static int query_agent_id(uint8_t &cid) {
+    for (int i = cid; i < MAX_NUM_CID; i++) {
+      if (agent_id_map[i] != 0) {
+        cid = i;
+        return agent_id_map[i];
+      }
+    }
+    return -1;
+  };
 
 protected:
+  static uint8_t agent_id_map[MAX_NUM_CID];
+
   bool broadcastBIN(uint8_t *payload, size_t length = 0) {
     return webSocket.broadcastBIN(payload, length);
   };
@@ -114,7 +144,9 @@ protected:
 
   void callback_router(uint8_t client_id, uint8_t *payload, size_t length);
 
-  virtual inline void set_connection_lost(uint8_t agent_id);
+  virtual inline void set_connection_lost(uint8_t agent_id) {
+    _disconnect_callback(agent_id);
+  };
 
 private:
   WebSocketsServer webSocket;
@@ -149,7 +181,9 @@ protected:
     return webSocket.sendBIN(payload, length);
   };
 
-  virtual inline void set_connection_lost(uint8_t agent_id);
+  virtual inline void set_connection_lost(uint8_t agent_id) {
+    _disconnect_callback(0);
+  };
 
 private:
   uint16_t _port;

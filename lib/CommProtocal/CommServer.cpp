@@ -1,10 +1,11 @@
 #include "CommProtocol.h"
 
 #ifdef SERVER
-uint8_t CommServer::agent_id_map[10];
+uint8_t CommServer::agent_id_map[10] = {0};
 Benchmark CommServer::state_health[MAX_NUM_AGENTS];
 
-CommServer::CommServer(uint16_t port) : webSocket(port), CommProtocol(){};
+CommServer::CommServer(uint16_t port) : webSocket(port), CommProtocol(){
+};
 
 void CommServer::init(uint8_t agent_id) {
   webSocket.begin();
@@ -12,8 +13,9 @@ void CommServer::init(uint8_t agent_id) {
       [&](uint8_t client_id, WStype_t type, uint8_t *payload, size_t length) {
         switch (type) {
         case WStype_DISCONNECTED: {
-          log_d("Disconnect cliend id %d\n", client_id);
           const uint8_t aid = agent_id_map[client_id];
+          agent_id_map[client_id] = 0;
+          log_d("Disconnect client id: %d, agent id: %d\n", client_id, aid);
           set_connection_lost(aid);
         }
 #ifdef COMM_DEBUG_PRINT
@@ -39,8 +41,7 @@ void CommServer::init(uint8_t agent_id) {
           callback_router(client_id, payload, length);
         }
 #ifdef COMM_DEBUG_PRINT
-          log_d("Receiving pong: id=%d, time=%ld, at %ld\n", pong_packet.id,
-                pong_packet.time, micros());
+          log_d("Receiving bin: cid=%d, aid:%d\n", client_id, agent_id_map[client_id]);
 #endif
           break;
 
@@ -65,7 +66,11 @@ void CommServer::callback_router(uint8_t client_id, uint8_t *payload,
   uint8_t agent_id = CommProtocol::callback_router(payload, length);
 
   // set agent id map
-  agent_id_map[client_id] = agent_id;
+  if (check_agent_id_valid(agent_id)) {
+    agent_id_map[client_id] = agent_id;
+  } else {
+    log_e("Agent id out of range: cid: %d. aid: %d\n", client_id, agent_id);
+  }
 }
 
 bool CommServer::send(const Packet *const packet, const size_t len) {
@@ -76,9 +81,4 @@ bool CommServer::send(const Packet *const packet, const size_t len) {
   return broadcastBIN((uint8_t *)packet, len);
 }
 
-void CommServer::set_connection_lost(uint8_t agent_id) {
-  _disconnect_callback(agent_id);
-}
-
-void CommServer::update() { webSocket.loop(); }
 #endif

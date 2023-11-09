@@ -46,21 +46,21 @@ uint8_t CommProtocol::callback_router(uint8_t *payload, size_t length) {
     CtrlPacket ctrl_packet;
     memcpy((void *)&ctrl_packet, payload, sizeof(CtrlPacket));
     _ctrl_callback(ctrl_packet);
-    return ctrl_packet.id;
+    return ctrl_packet.agent_id;
   } break;
 
   case sizeof(StatePacket): {
     StatePacket state_packet;
     memcpy((void *)&state_packet, payload, sizeof(StatePacket));
     _state_callback(state_packet);
-    return state_packet.id;
+    return state_packet.agent_id;
   } break;
 
   case sizeof(InstructPacket): {
     InstructPacket instruct_packet;
     memcpy((void *)&instruct_packet, payload, sizeof(InstructPacket));
     _instruct_callback(instruct_packet);
-    return instruct_packet.id;
+    return instruct_packet.agent_id;
   } break;
 
   case sizeof(CtrlPacketArray): {
@@ -69,7 +69,11 @@ uint8_t CommProtocol::callback_router(uint8_t *payload, size_t length) {
     memcpy((void *)&packet_array, payload, sizeof(CtrlPacketArray));
 
     // extract the data for this agent
-    _ctrl_callback(packet_array.packets[_agent_id - 1]);
+    // must not be the SERVER
+    if (check_agent_id_valid(_agent_id))
+      _ctrl_callback(packet_array.packets[_agent_id - 1]);
+    else 
+      log_e("Agent id out of range: %d\n", _agent_id);
     return _agent_id;
   } break;
 

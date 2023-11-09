@@ -6,6 +6,7 @@
 #include <Arduino.h>
 
 #include <EEPROM.h>
+#include "freertos/semphr.h"
 
 #define COMM_SETUP
 #ifdef SERVER
@@ -54,8 +55,10 @@ protected:
   static AGENT_STATE _state;
 
 #ifdef SERVER
+  static SemaphoreHandle_t _agents_mutex;
+
   // agent data
-  static AgentData agents[MAX_NUM_AGENTS];
+  static volatile AgentData agents[MAX_NUM_AGENTS];
 #else
   // sensor data
   static StatePacket packet;
@@ -67,6 +70,12 @@ protected:
 
   // Loading agent id from EEPROM
   static int get_agent_id();
+
+  // Perform range check on agent id and shift an agent id to an array index
+  static uint8_t get_aidx(uint8_t agent_id) {
+    assert(agent_id > 0 && agent_id <= MAX_NUM_AGENTS);
+    return agent_id - 1;
+  };
 
 #ifdef SERVER
   static bool check_all_agent_alive(AGENT_STATE target = AGENT_STATE::INITED);
@@ -85,7 +94,7 @@ private:
   static void indicator_update(void *parameter){
     for (;;) {
       indicator.update();
-      yield();
+      vTaskDelay(10 / portTICK_PERIOD_MS);
     }
   };
 };

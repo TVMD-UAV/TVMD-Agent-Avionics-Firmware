@@ -68,10 +68,6 @@ struct CtrlPacketArray : public Packet {
 struct StatePacket : public Packet {
   AGENT_STATE state;
   SensorData s;
-  
-  void print(char str[40]) {
-    sprintf(str, "%6.2f, \t%6.2f, \t%6.2f, \t", s.acc.x, s.acc.y, s.acc.z);
-  }
 };
 
 struct InstructPacket : public Packet {

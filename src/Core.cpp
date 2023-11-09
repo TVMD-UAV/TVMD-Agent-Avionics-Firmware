@@ -4,10 +4,10 @@ uint8_t Core::_agent_id;
 AGENT_STATE Core::_state;
 TaskHandle_t Core::websocket_task_handle;
 TaskHandle_t Core::indicator_task_handle;
-#define COMM_DEBUG_PRINT
 
 #ifdef SERVER
-AgentData Core::agents[MAX_NUM_AGENTS];
+SemaphoreHandle_t Core::_agents_mutex = NULL;
+volatile AgentData Core::agents[MAX_NUM_AGENTS];
 CommServer Core::comm = CommServer(COMM_PORT);
 #else
 StatePacket Core::packet;
@@ -31,6 +31,8 @@ ESCMotorDriver Core::esc_p2(
 Indicator Core::indicator;
 
 void Core::init() {
+  _agents_mutex = xSemaphoreCreateMutex();
+
   indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::FLASHING, INDICATOR_GREEN);
 
   // Attaching indicator task to core 0 with the minimum task priority (1)
@@ -70,15 +72,15 @@ void Core::init() {
     // TODO: do something
   });
 
-  comm.set_state_callback([](StatePacket packet) {
-    // TODO: do something
-    const uint8_t agent_array_idx = packet.agent_id - 1;
-    assert(agent_array_idx >= 0 && agent_array_idx < MAX_NUM_AGENTS);
-    agents[agent_array_idx].packet = packet;
-    agents[agent_array_idx].packet.time = millis();
-
-    CommServer::state_health[agent_array_idx].feed_data(packet.id, packet.time,
-                                                        micros());
+  comm.set_state_callback([](StatePacket &packet) {
+    uint8_t aidx;
+    if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+      aidx = get_aidx(packet.agent_id);
+      memcpy((void*)&(agents[aidx].packet), &packet, sizeof(packet));
+      CommServer::state_health[aidx].feed_data(packet.id, packet.time, micros());
+      xSemaphoreGive(_agents_mutex);
+    }
+    agents[aidx].packet.time = millis();
 
     // check agent state
     if (_state == AGENT_STATE::LOST_CONN) {
@@ -93,8 +95,10 @@ void Core::init() {
   });
 
   comm.set_disconnect_callback([](uint8_t agent_id) {
-    if (agent_id > 0 && agent_id <= MAX_NUM_AGENTS)
-      agents[agent_id - 1].packet.state = AGENT_STATE::LOST_CONN;
+    if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+      agents[get_aidx(agent_id)].packet.state = AGENT_STATE::LOST_CONN;
+      xSemaphoreGive(_agents_mutex);
+    }
     set_armed(false);
     set_state(AGENT_STATE::LOST_CONN);
   });
@@ -293,13 +297,33 @@ void Core::send_ctrl(const CtrlPacketArray *const packet) {
 void Core::print_summary() {
 #ifdef SERVER
   // agent id, client id, agent state
-  char str[200];
+  char str[200] = "\0";
+  uint8_t cid = 0;
   for (int i = 0; i < MAX_NUM_AGENTS; i++) {
+    // Query agent id by client id. 
+    // If cid is an active client, aid is the agent id. Otherwise, aid is -1.
+    const int aid = CommServer::query_agent_id(cid);
+    if (aid == -1) break;
+
+    const uint8_t aidx = get_aidx(aid);
     char acc_str[40];
-    agents[i].packet.print(acc_str);
-    sprintf(str, "%s\n[%d]\t %d\t %d\t %6.2f\t %s", str, i,
-            CommServer::agent_id_map[i], agents[i].packet.state,
-            CommServer::state_health[i].get_fps(), acc_str);
+
+    // Core module save agent data indexed by agent id (aid)
+    
+    if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+      sprintf(acc_str, "%6.2f, \t%6.2f, \t%6.2f, \t%6.2f, \t", 
+        agents[aidx].packet.s.orientation.data[0], 
+        agents[aidx].packet.s.orientation.data[1], 
+        agents[aidx].packet.s.orientation.data[2], 
+        agents[aidx].packet.s.orientation.data[3]);
+      sprintf(str, "%s\n[%d]\t %d\t %d\t %6.2f\t %s", str, 
+              aid, cid, agents[aidx].packet.state,
+              CommServer::state_health[aidx].get_fps(), acc_str);
+      xSemaphoreGive(_agents_mutex);  
+    }
+    
+    // Move to next client id
+    cid += 1;
   }
   char server_state[40];
   sprintf(server_state, "\nNavigator state: %d", _state);
@@ -313,6 +337,13 @@ void Core::print_summary() {
           ctrl_str);
   log_i("\nAid\t State\t C-FPS\t S-FPS\t Sensor\t, %s", str);
 #endif
+
+  // print stack memory usage
+  log_i("Free stack of indicator routine: %d", uxTaskGetStackHighWaterMark(indicator_task_handle));
+  log_i("Free stack of websocket routine: %d", uxTaskGetStackHighWaterMark(websocket_task_handle));
+
+  // print heap memory usage
+  log_i("Free heap: %d", ESP.getFreeHeap());
 }
 
 /**
@@ -391,7 +422,8 @@ void Core::state_feedback(void *parameter) {
     #endif
     
     // pass control to another task waiting to be executed
-    yield();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    // yield();
   }
 }
 #endif
@@ -403,9 +435,12 @@ void Core::websocket_loop(void *parameter) {
 
 #ifdef SERVER
     // check for connection lost
-    for (int i = 0; i < MAX_NUM_AGENTS; i++) {
-      if (millis() - agents[i].packet.time > MAX_TIME_OUT)
-        agents[i].packet.state = AGENT_STATE::LOST_CONN;
+    for (int i = 0; i < MAX_NUM_AGENTS; i++) {  
+      if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+        if (millis() - agents[i].packet.time > MAX_TIME_OUT)
+          agents[i].packet.state = AGENT_STATE::LOST_CONN;
+        xSemaphoreGive(_agents_mutex);
+      }
     }
 
     if (_state == AGENT_STATE::ARMING) {
@@ -416,7 +451,9 @@ void Core::websocket_loop(void *parameter) {
 #endif
 
     // To allow other threads have chances to join
-    yield();
+    
+    vTaskDelay(1 / portTICK_PERIOD_MS);
+    // yield();
   }
 #endif
 }
@@ -424,8 +461,12 @@ void Core::websocket_loop(void *parameter) {
 #ifdef SERVER
 bool Core::check_all_agent_alive(AGENT_STATE target) {
   bool all_agent_available = true;
-  for (int i = 0; i < MAX_NUM_AGENTS; i++) {
-    all_agent_available &= (agents[i].packet.state == target);
+  
+  if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+    for (int i = 0; i < MAX_NUM_AGENTS; i++) {
+      all_agent_available &= (agents[i].packet.state == target);
+    }
+    xSemaphoreGive(_agents_mutex);
   }
   return all_agent_available;
 }

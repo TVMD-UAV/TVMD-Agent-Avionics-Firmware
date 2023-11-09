@@ -58,10 +58,6 @@ bool CommClient::send(const Packet *const packet, const size_t len) {
   return false;
 }
 
-void CommClient::set_connection_lost(uint8_t client_id) {
-  _disconnect_callback(0);
-}
-
 void CommClient::update() {
   if (WiFi.isConnected()) {
     // websocket routine
