@@ -51,6 +51,8 @@ void loop() {
       packet.packets[i].eta_y = 60.0f * cos(t);
       packet.packets[i].omega_p1 = 30.0f * (sin(t) + 1);
       packet.packets[i].omega_p2 = 30.0f * (cos(t) + 1);
+      packet.packets[i].id = packet.id;
+      packet.packets[i].time = packet.time;
       packet.packets[i].agent_id = i + 1;
       // TODO: Using sendto
       Core::comm.send(&packet.packets[i], sizeof(CtrlPacket));

@@ -104,7 +104,7 @@ void Core::init() {
   });
 #else
   /* Setup ctrl callback functions */
-  comm.set_ctrl_callback([](CtrlPacket packet) {
+  comm.set_ctrl_callback([](CtrlPacket &packet) {
     if (_state == AGENT_STATE::LOST_CONN) {
       // relive
       set_state(AGENT_STATE::INITED);
@@ -140,6 +140,7 @@ void Core::init() {
     }
     if (_state == AGENT_STATE::LOST_CONN) {
       // relive
+      set_armed(false);
       set_state(AGENT_STATE::INITED);
     }
   });
@@ -166,9 +167,9 @@ void Core::init() {
   // TODO: check stack usages
   xTaskCreatePinnedToCore(websocket_loop, /* Function to implement the task */
                           "websocket_updating",   /* Name of the task */
-                          15000,                  /* Stack size in words */
+                          7000,                   /* Stack size in words */
                           NULL,                   /* Task input parameter */
-                          1,                      /* Priority of the task */
+                          5,                      /* Priority of the task */
                           &websocket_task_handle, /* Task handle. */
                           1); /* Core where the task should run */
 
@@ -297,8 +298,9 @@ void Core::send_ctrl(const CtrlPacketArray *const packet) {
 void Core::print_summary() {
 #ifdef SERVER
   // agent id, client id, agent state
-  char str[200] = "\0";
   uint8_t cid = 0;
+
+  log_i("Navigator state: %d\nAid\t Cid\t State\t S-FPS\t Sensor", _state);
   for (int i = 0; i < MAX_NUM_AGENTS; i++) {
     // Query agent id by client id. 
     // If cid is an active client, aid is the agent id. Otherwise, aid is -1.
@@ -306,44 +308,42 @@ void Core::print_summary() {
     if (aid == -1) break;
 
     const uint8_t aidx = get_aidx(aid);
-    char acc_str[40];
 
     // Core module save agent data indexed by agent id (aid)
-    
+    Quaternion q;
+    AGENT_STATE state;
+    float fps;
     if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
-      sprintf(acc_str, "%6.2f, \t%6.2f, \t%6.2f, \t%6.2f, \t", 
-        agents[aidx].packet.s.orientation.data[0], 
-        agents[aidx].packet.s.orientation.data[1], 
-        agents[aidx].packet.s.orientation.data[2], 
-        agents[aidx].packet.s.orientation.data[3]);
-      sprintf(str, "%s\n[%d]\t %d\t %d\t %6.2f\t %s", str, 
-              aid, cid, agents[aidx].packet.state,
-              CommServer::state_health[aidx].get_fps(), acc_str);
+      memcpy((void*)&q, (void*)&(agents[aidx].packet.s.orientation), sizeof(Quaternion));
+      state = agents[aidx].packet.state;
+      fps = CommServer::state_health[aidx].get_fps();
       xSemaphoreGive(_agents_mutex);  
     }
+    printf("[%d]\t %d\t %d\t %6.2f\t %6.2f, \t%6.2f, \t%6.2f, \t%6.2f\n", 
+      aid, cid, state, fps, q.q0, q.q1, q.q2, q.q3);
     
     // Move to next client id
     cid += 1;
   }
-  char server_state[40];
-  sprintf(server_state, "\nNavigator state: %d", _state);
-  log_i("%s\nAid\t Cid\t State\t S-FPS\t Sensor\t, %s", server_state, str);
 #else
-  char str[200];
-  char ctrl_str[40];
-  _ctrl_packet.print(ctrl_str);
-  sprintf(str, "\n[%d]\t %d\t %6.2f\t %6.2f\t %s", _agent_id, _state,
-          CommClient::ctrl_health.get_fps(), CommClient::state_health.get_fps(),
-          ctrl_str);
-  log_i("\nAid\t State\t C-FPS\t S-FPS\t Sensor\t, %s", str);
+  log_i("\nAid\t State\t C-FPS\t S-FPS\t Sensor");
+  const double eta_x = _ctrl_packet.eta_x;
+  const double eta_y = _ctrl_packet.eta_y;
+  const double omega_p1 = _ctrl_packet.omega_p1;
+  const double omega_p2 = _ctrl_packet.omega_p2;
+  const float ctrl_fps = CommClient::ctrl_health.get_fps();
+  const float state_fps = CommClient::state_health.get_fps();
+  printf("[%d]\t %d\t %6.2f\t %6.2f, \t%6.2f, \t%6.2f, \t%6.2f, \t%6.2f\n", 
+    _agent_id, _state, eta_x, eta_y, omega_p1, omega_p2, ctrl_fps, state_fps);
+  
 #endif
 
   // print stack memory usage
-  log_i("Free stack of indicator routine: %d", uxTaskGetStackHighWaterMark(indicator_task_handle));
-  log_i("Free stack of websocket routine: %d", uxTaskGetStackHighWaterMark(websocket_task_handle));
+  printf("Free stack of indicator routine: %d\n", uxTaskGetStackHighWaterMark(indicator_task_handle));
+  printf("Free stack of websocket routine: %d\n", uxTaskGetStackHighWaterMark(websocket_task_handle));
 
   // print heap memory usage
-  log_i("Free heap: %d", ESP.getFreeHeap());
+  printf("Free heap: %d\n", ESP.getFreeHeap());
 }
 
 /**

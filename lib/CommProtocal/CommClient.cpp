@@ -52,7 +52,7 @@ void CommClient::init(uint8_t agent_id) {
 }
 
 bool CommClient::send(const Packet *const packet, const size_t len) {
-  if (WiFi.status() == WL_CONNECTED & webSocket.isConnected()) {
+  if ((WiFi.status() == WL_CONNECTED) && webSocket.isConnected()) {
     return sendToBIN(0, (uint8_t *)packet, len);
   }
   return false;
