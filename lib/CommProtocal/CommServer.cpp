@@ -1,6 +1,7 @@
 #include "CommProtocol.h"
 
 #ifdef SERVER
+SemaphoreHandle_t CommServer::_map_mutex = NULL;
 uint8_t CommServer::agent_id_map[10] = {0};
 Benchmark CommServer::state_health[MAX_NUM_AGENTS];
 
@@ -8,15 +9,18 @@ CommServer::CommServer(uint16_t port) : webSocket(port), CommProtocol(){
 };
 
 void CommServer::init(uint8_t agent_id) {
+  _map_mutex = xSemaphoreCreateMutex();
   webSocket.begin();
   webSocket.onEvent(
       [&](uint8_t client_id, WStype_t type, uint8_t *payload, size_t length) {
         switch (type) {
         case WStype_DISCONNECTED: {
           const uint8_t aid = agent_id_map[client_id];
-          agent_id_map[client_id] = 0;
-          log_d("Disconnect client id: %d, agent id: %d\n", client_id, aid);
-          set_connection_lost(aid);
+          if (check_agent_id_valid(aid)) {
+            agent_id_map[client_id] = 0;
+            log_d("Disconnect client id: %d, agent id: %d\n", client_id, aid);
+            set_connection_lost(aid);
+          }
         }
 #ifdef COMM_DEBUG_PRINT
           log_d("[%u] Disconnected!\n", client_id);
@@ -66,11 +70,14 @@ void CommServer::callback_router(uint8_t client_id, uint8_t *payload,
   uint8_t agent_id = CommProtocol::callback_router(payload, length);
 
   // set agent id map
-  if (check_agent_id_valid(agent_id)) {
-    agent_id_map[client_id] = agent_id;
-  } else {
-    log_e("Agent id out of range: cid: %d. aid: %d\n", client_id, agent_id);
-  }
+  if (agent_id_map[client_id] == 0) {
+    if (check_agent_id_valid(agent_id) && (xSemaphoreTake(_map_mutex, portMAX_DELAY) == pdTRUE)){
+      agent_id_map[client_id] = agent_id;
+      xSemaphoreGive(_map_mutex);
+    }
+    else 
+      log_e("Agent id out of range: cid: %d. aid: %d\n", client_id, agent_id);
+  } 
 }
 
 bool CommServer::send(const Packet *const packet, const size_t len) {

@@ -60,8 +60,11 @@ protected:
   // agent data
   static volatile AgentData agents[MAX_NUM_AGENTS];
 #else
+  static SemaphoreHandle_t _ctrl_mutex;
+  static SemaphoreHandle_t _state_mutex;
+
   // sensor data
-  static StatePacket packet;
+  static StatePacket _state_packet;
   static CtrlPacket _ctrl_packet;
 #endif
 

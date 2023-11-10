@@ -29,6 +29,7 @@
 #include <Wire.h>
 #endif
 
+#include "freertos/semphr.h"
 #include "CommProtocol.h"
 #include "PacketTypes.h"
 
@@ -64,6 +65,7 @@ public:
   void update();
 
 protected:
+  SemaphoreHandle_t _data_mutex;
   SensorData _data;
 
 private:

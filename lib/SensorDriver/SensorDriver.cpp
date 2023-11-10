@@ -11,6 +11,7 @@ Sensors::Sensors() : imu_enabled(false), baro_enabled(false),
 {}
 
 int Sensors::init(int update_rate) {
+  _data_mutex = xSemaphoreCreateMutex();
   _sensor_updated = false;
   _update_interval = 1000 / update_rate;
 
@@ -44,7 +45,10 @@ int Sensors::init(int update_rate) {
 }
 
 void Sensors::state_packet_gen(StatePacket *const _packet) {
-  memcpy(&(_packet->s), &_data, sizeof(_data));
+  if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+    memcpy(&(_packet->s), &_data, sizeof(_data));
+    xSemaphoreGive(_data_mutex);
+  }
   _sensor_updated = false;
 }
 
@@ -251,40 +255,45 @@ void Sensors::update() {
           const double q3 = ((double)data.Quat9.Data.Q3) / 1073741824.0; // Convert to double. Divide by 2^30
           const double q0 = sqrt(1.0 - ((q1 * q1) + (q2 * q2) + (q3 * q3)));
 
-          _data.orientation.q0 = q0;
-          _data.orientation.q1 = q1;
-          _data.orientation.q2 = q2;
-          _data.orientation.q3 = q3;
+          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+            _data.orientation.q0 = q0;
+            _data.orientation.q1 = q1;
+            _data.orientation.q2 = q2;
+            _data.orientation.q3 = q3;
+            xSemaphoreGive(_data_mutex);
+          }
 
-          // SERIAL_PORT.print(F("Q1:"));
-          // SERIAL_PORT.print(q1, 3);
-          // SERIAL_PORT.print(F(" Q2:"));
-          // SERIAL_PORT.print(q2, 3);
-          // SERIAL_PORT.print(F(" Q3:"));
-          // SERIAL_PORT.print(q3, 3);
-          // SERIAL_PORT.print(F(" Accuracy:"));
           // SERIAL_PORT.println(data.Quat9.Data.Accuracy);
         }
 
-        if ((data.header & DMP_header_bitmap_Accel) > 0) // We have asked for orientation data so we should receive Quat9
-        {
-          _data.acc.x = (float)data.Raw_Accel.Data.X;
-          _data.acc.y = (float)data.Raw_Accel.Data.Y;
-          _data.acc.z = (float)data.Raw_Accel.Data.Z;
+        if ((data.header & DMP_header_bitmap_Accel) > 0) {
+          // We have asked for orientation data so we should receive Quat9
+          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+            _data.acc.x = (float)data.Raw_Accel.Data.X;
+            _data.acc.y = (float)data.Raw_Accel.Data.Y;
+            _data.acc.z = (float)data.Raw_Accel.Data.Z;
+            xSemaphoreGive(_data_mutex);
+          }
         }
 
-        if ((data.header & DMP_header_bitmap_Gyro) > 0) // We have asked for orientation data so we should receive Quat9
-        {
-          _data.gyro.x = (float)data.Raw_Gyro.Data.X;
-          _data.gyro.y = (float)data.Raw_Gyro.Data.Y;
-          _data.gyro.z = (float)data.Raw_Gyro.Data.Z;
+        if ((data.header & DMP_header_bitmap_Gyro) > 0) {
+          // We have asked for orientation data so we should receive Quat9
+          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+            _data.gyro.x = (float)data.Raw_Gyro.Data.X;
+            _data.gyro.y = (float)data.Raw_Gyro.Data.Y;
+            _data.gyro.z = (float)data.Raw_Gyro.Data.Z;
+            xSemaphoreGive(_data_mutex);
+          }
         }
 
-        if ((data.header & DMP_header_bitmap_Compass) > 0) // We have asked for orientation data so we should receive Quat9
-        {
-          _data.compass.x = (float)data.Compass.Data.X;
-          _data.compass.y = (float)data.Compass.Data.Y;
-          _data.compass.z = (float)data.Compass.Data.Z;
+        if ((data.header & DMP_header_bitmap_Compass) > 0) {
+          // We have asked for orientation data so we should receive Quat9 
+          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+            _data.compass.x = (float)data.Compass.Data.X;
+            _data.compass.y = (float)data.Compass.Data.Y;
+            _data.compass.z = (float)data.Compass.Data.Z;
+            xSemaphoreGive(_data_mutex);
+          }
         }
       }
 
@@ -294,17 +303,13 @@ void Sensors::update() {
   }
 
   if (baro_enabled & (millis() - last_update_time > _update_interval)) {
-    _data.pressure = baro.readPressure();
     const float seaLevelhPa = 1013.25;
-    _data.altitude = PRESSURE_TO_ALTITUDE(_data.pressure, seaLevelhPa);
+    if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+      _data.pressure = baro.readPressure();
+      _data.altitude = PRESSURE_TO_ALTITUDE(_data.pressure, seaLevelhPa);
+      xSemaphoreGive(_data_mutex);
+    }
     last_update_time = millis();
     _sensor_updated = true;
-
-    // SERIAL_PORT.printf("Acc: %6.0f, %6.0f, %6.0f, Gyro: %6.0f, %6.0f, %6.0f, Comp: %6.0f, %6.0f, %6.0f, Orient: %6.2f, %6.2f, %6.2f, Pres: %6.2f, Alt: %6.2f \n", 
-    //   _data.acc[0], _data.acc[1], _data.acc[2], 
-    //   _data.gyro[0], _data.gyro[1], _data.gyro[2], 
-    //   _data.compass[0], _data.compass[1], _data.compass[2], 
-    //   _data.orientation[0], _data.orientation[1], _data.orientation[2], 
-    //   _data.pressure, _data.altitude);
   }
 }

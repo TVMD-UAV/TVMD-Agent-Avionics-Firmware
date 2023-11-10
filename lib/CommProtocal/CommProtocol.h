@@ -2,6 +2,7 @@
 
 #include "benchmark.h"
 #include "configs.h"
+#include "freertos/semphr.h"
 
 // Imported from WebSockets.h
 #ifdef ARDUINO_ARCH_AVR
@@ -131,6 +132,7 @@ public:
   };
 
 protected:
+  static SemaphoreHandle_t _map_mutex;
   static uint8_t agent_id_map[MAX_NUM_CID];
 
   bool broadcastBIN(uint8_t *payload, size_t length = 0) {

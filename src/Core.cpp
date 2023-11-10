@@ -10,7 +10,10 @@ SemaphoreHandle_t Core::_agents_mutex = NULL;
 volatile AgentData Core::agents[MAX_NUM_AGENTS];
 CommServer Core::comm = CommServer(COMM_PORT);
 #else
-StatePacket Core::packet;
+SemaphoreHandle_t Core::_ctrl_mutex = NULL;
+SemaphoreHandle_t Core::_state_mutex = NULL;
+
+StatePacket Core::_state_packet;
 CtrlPacket Core::_ctrl_packet;
 
 TaskHandle_t Core::state_feedback_handle;
@@ -31,7 +34,12 @@ ESCMotorDriver Core::esc_p2(
 Indicator Core::indicator;
 
 void Core::init() {
+  #ifdef SERVER
   _agents_mutex = xSemaphoreCreateMutex();
+  #else 
+  _ctrl_mutex = xSemaphoreCreateMutex();
+  _state_mutex = xSemaphoreCreateMutex();
+  #endif
 
   indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::FLASHING, INDICATOR_GREEN);
 
@@ -152,7 +160,7 @@ void Core::init() {
     }
   });
 
-  packet.agent_id = _agent_id;
+  _state_packet.agent_id = _agent_id;
 #endif
   log_v("Communication callback set!");
 
@@ -409,14 +417,18 @@ void Core::state_feedback(void *parameter) {
     // Beacon message to server
     #ifdef COMM_SETUP
     if (sensor.available()){
-      sensor.state_packet_gen(&packet);
-      packet.state = _state;
-      packet.agent_id = _agent_id;
+      if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+        sensor.state_packet_gen(&_state_packet);
+        _state_packet.state = _state;
+        _state_packet.agent_id = _agent_id;
+        _state_packet.id += 1;
 
-      // send the packet to server
-      if (comm.send(&packet, sizeof(packet))) {
-        CommClient::state_health.feed_data(packet.id, micros(), micros());
-        last_summary_time = millis();
+        // send the packet to server
+        if (comm.send(&_state_packet, sizeof(_state_packet))) {
+          CommClient::state_health.feed_data(_state_packet.id, micros(), micros());
+          last_summary_time = millis();
+        }
+        xSemaphoreGive(_state_mutex);
       }
     }
     #endif

@@ -43,7 +43,7 @@ void CommClient::init(uint8_t agent_id) {
       break;
     }
   });
-  webSocket.setReconnectInterval(5000);
+  webSocket.setReconnectInterval(1000);
 
   ctrl_health = Benchmark(NUM_HEALTH_CHECK);
   state_health = Benchmark(NUM_HEALTH_CHECK);
