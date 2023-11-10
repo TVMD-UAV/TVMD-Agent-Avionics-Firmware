@@ -5,7 +5,7 @@
 
 // #define WRITE_AGENT_ID
 // #define AGENT_ID_TO_WRITE 1
-#define MAX_NUM_AGENTS 2
+#define MAX_NUM_AGENTS 4
 
 // 0: server
 // 1: normal agent

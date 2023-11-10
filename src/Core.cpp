@@ -234,6 +234,7 @@ bool Core::set_armed(bool armed) {
     if (_state == AGENT_STATE::ARMING) {
       // Waiting on all agents set
       if (check_all_agent_alive(AGENT_STATE::ARMED)) {
+        indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_RED);
         set_state(AGENT_STATE::ARMED);
         return true;
       } else {
@@ -258,14 +259,17 @@ bool Core::set_armed(bool armed) {
     }
   } else {
     // dis-arming
+    indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_BLUE);
     arming.instruction = InstructPacket::INSTRUCT_TYPE::DISARMING;
     comm.send(&arming, sizeof(arming));
     return true;
   }
   return false;
 #else
-  const AGENT_STATE target = armed ? AGENT_STATE::ARMED : _state;
+  const AGENT_STATE target = armed ? AGENT_STATE::ARMED : AGENT_STATE::INITED;
   if (set_state(target)) {
+    indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, 
+      (armed ? INDICATOR_RED : INDICATOR_BLUE));
     Core::x_servo.set_armed(armed);
     Core::y_servo.set_armed(armed);
     Core::esc_p1.set_armed(armed);
@@ -362,46 +366,35 @@ void Core::print_summary() {
 bool Core::set_state(AGENT_STATE target) {
   if (target == _state)
     return false;
-  switch (_state) {
-  case AGENT_STATE::STARTING:
-    if (target != AGENT_STATE::INITED)
-      return false;
-    break;
-#ifdef SERVER
-  // For the navigator: INIT -> ARMING -> ARMED
-  // The state is permitted to be ARMED after checking all agents are set
-  case AGENT_STATE::INITED:
-    if (target != AGENT_STATE::ARMING && target != AGENT_STATE::LOST_CONN)
-      return false;
-    break;
-#else
-  // For agents: INIT -> ARMED
-  case AGENT_STATE::INITED:
-    if (target != AGENT_STATE::ARMED && target != AGENT_STATE::LOST_CONN)
-      return false;
-    break;
-#endif
-#ifdef SERVER
-  case AGENT_STATE::ARMING:
-    if (target != AGENT_STATE::ARMED && target != AGENT_STATE::INITED &&
-        target != AGENT_STATE::LOST_CONN)
-      return false;
-    break;
-#endif
-  case AGENT_STATE::ARMED:
-    if (target != AGENT_STATE::INITED && target != AGENT_STATE::LOST_CONN)
-      return false;
-    break;
-  case AGENT_STATE::LOST_CONN:
-    if (target != AGENT_STATE::INITED)
-      return false;
-    break;
-  default:
-    return false;
-    break;
+  
+  switch(target) {
+    case AGENT_STATE::INITED:
+      indicator.set_led_state(Indicator::LED_ID::COMM, Indicator::IMPULSE, INDICATOR_BLUE);
+      break;
+
+    case AGENT_STATE::ARMING:
+      if (_state != AGENT_STATE::INITED)
+        return false;
+      indicator.set_led_state(Indicator::LED_ID::COMM, Indicator::IMPULSE, 0x00FFFF00);
+      break;
+
+    case AGENT_STATE::ARMED:
+    #ifdef SERVER
+      if (_state != AGENT_STATE::ARMING)
+        return false;
+    #else 
+      if (_state != AGENT_STATE::INITED)
+        return false;
+    #endif 
+      indicator.set_led_state(Indicator::LED_ID::COMM, Indicator::IMPULSE, 0x00FF0000);
+      break;
+
+    case AGENT_STATE::LOST_CONN:
+      indicator.set_led_state(Indicator::LED_ID::COMM, Indicator::HASTILY, 0x00FF00FF);
+      break;
   }
   _state = target;
-  log_i("[STATE] Succeed to set state to %d\n", target);
+  log_i("[STATE] Succeed to set state to %d", target);
   return true;
 }
 /**
