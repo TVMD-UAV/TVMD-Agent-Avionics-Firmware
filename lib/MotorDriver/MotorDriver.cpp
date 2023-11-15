@@ -2,67 +2,62 @@
 
 #ifdef HAS_MOTOR
 
-MotorDriver::MotorDriver() : armed(false){};
+MotorDriver::MotorDriver(const MotorConfigs config) : 
+  _config(config){};
 
-void MotorDriver::set_armed(bool _arm) {
-  armed = _arm;
-  if (!armed)
-    init();
-};
-
-ServoMotorDriver::ServoMotorDriver(const ServoMotorConfigs config)
-    : _config(config) {}
-
-void ServoMotorDriver::init() {
+void MotorDriver::init() {
   // TODO: config check is required
 
   Servo::attach(_config.pin, _config.pmin, _config.pmax);
 
   // set angles to middle
-  Servo::write((_config.pmin + _config.pmax) / 2);
+  Servo::write(_idle_value);
+}
+
+void MotorDriver::raw_write(const uint16_t value) {
+  if (armed) {
+    // range constrain
+    const uint16_t w = CONSTRAIN_VALUE(value, _config.pmin, _config.pmax);
+
+    Servo::write(w);
+  }
+};
+
+
+ServoMotorDriver::ServoMotorDriver(const ServoMotorConfigs config): 
+  MotorDriver(config) 
+{
+  gear_ratio = config.gear_ratio;
+  _idle_value = (_config.pmin + _config.pmax) / 2;
 }
 
 /** Drive the servo to the target angle
  * @param angle the target angle in degree
  */
 void ServoMotorDriver::write(const float angle) {
-  if (armed) {
-    // unit mapping
-    const int32_t value =
-        angle * (_config.pmax - _config.pmin) / _config.vrange + _config.pmid;
+  // unit mapping
+  const int32_t value =
+      angle * (_config.pmax - _config.pmin) / _config.vrange + _config.pmid;
 
-    // range constrain
-    const uint16_t v = CONSTRAIN_VALUE(value, _config.pmin, _config.pmax);
-
-    Servo::write(v);
-    log_i("Servo: %d\n", v);
-  }
+  raw_write(value);
 };
 
-ESCMotorDriver::ESCMotorDriver(const ESCMotorConfigs config)
-    : _config(config) {}
 
-void ESCMotorDriver::init() {
-  Servo::attach(_config.pin, _config.pmin, _config.pmax);
-
-  // set angles to middle
-  Servo::write(_config.pmin);
+ESCMotorDriver::ESCMotorDriver(const ESCMotorConfigs config): 
+  MotorDriver(config) 
+{
+  max_throttle = config.max_throttle;
+  _idle_value = _config.pmin;
 }
 
 /** Drive the esc (the propeller) to the target throttle
  * @param throttle the target throttle (in percentage, 0~100)
  */
 void ESCMotorDriver::write(const float throttle) {
-  if (armed) {
-    // unit mapping
-    const int32_t value =
-        throttle * (_config.pmax - _config.pmin) / _config.vrange +
-        _config.pmin;
+  // unit mapping
+  const int32_t value =
+      throttle * (_config.pmax - _config.pmin) / _config.vrange + _config.pmin;
 
-    // range constrain
-    const uint16_t v = CONSTRAIN_VALUE(value, _config.pmin, _config.pmax);
-
-    Servo::write(v);
-  }
+  raw_write(value);
 };
 #endif // HAS MOTOR

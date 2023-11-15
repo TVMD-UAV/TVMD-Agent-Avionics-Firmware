@@ -119,11 +119,15 @@ void Core::init() {
     } else {
       if (packet.agent_id == _agent_id) {
         _ctrl_packet = packet;
-        Core::x_servo.write(packet.eta_x);
-        Core::y_servo.write(packet.eta_y);
-        Core::esc_p1.write(packet.omega_p1);
-        Core::esc_p2.write(packet.omega_p2);
-        CommClient::ctrl_health.feed_data(packet.id, packet.time, micros());
+        // Core::x_servo.write(packet.eta_x);
+        // Core::y_servo.write(packet.eta_y);
+        // Core::esc_p1.write(packet.omega_p1);
+        // Core::esc_p2.write(packet.omega_p2);
+        Core::x_servo.raw_write(packet.eta_x);
+        Core::y_servo.raw_write(packet.eta_y);
+        Core::esc_p1.raw_write(packet.omega_p1);
+        Core::esc_p2.raw_write(packet.omega_p2);
+        CommClient::ctrl_health.feed_data(micros());
       }
     }
   });

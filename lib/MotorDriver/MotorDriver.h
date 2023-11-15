@@ -48,18 +48,24 @@ public:
  */
 class MotorDriver : protected Servo {
 public:
-  MotorDriver();
+  MotorDriver(const MotorConfigs);
 
-  virtual void init() = 0;
+  virtual void init();
 
   virtual void write(const float) = 0;
 
-  void set_armed(bool _arm);
+  virtual void raw_write(const uint16_t);
+
+  void set_armed(bool _arm) {armed = _arm;};
 
   //   virtual void calibration();
 
 protected:
-  bool armed;
+  bool armed{false};
+
+  MotorConfigs _config;
+
+  uint16_t _idle_value{0};
 };
 
 /*
@@ -69,12 +75,11 @@ class ServoMotorDriver : public MotorDriver {
 public:
   ServoMotorDriver(const ServoMotorConfigs config);
 
-  virtual void init();
-
   virtual void write(const float angle);
 
 protected:
-  ServoMotorConfigs _config;
+  // ServoMotorConfigs _config;
+  uint16_t gear_ratio;
 };
 
 /*
@@ -83,12 +88,12 @@ protected:
 class ESCMotorDriver : public MotorDriver {
 public:
   ESCMotorDriver(const ESCMotorConfigs config);
-  void init();
 
   void write(const float throttle);
 
 protected:
-  ESCMotorConfigs _config;
+  // ESCMotorConfigs _config;
+  uint16_t max_throttle;
 };
 
 #endif // HAS MOTOR
