@@ -47,11 +47,19 @@ public:
 
   static void print_summary();
 
+  static void print_instructions();
+
   static bool set_state(AGENT_STATE target);
 
   static AGENT_STATE get_current_state() { return _state; };
 
 protected:
+#ifdef SERVER
+  static SemaphoreHandle_t _packet_mutex;
+
+  static CtrlPacketArray _packet;
+#endif
+
   static uint8_t _agent_id;
 
   static AGENT_STATE _state;

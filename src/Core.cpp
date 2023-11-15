@@ -7,6 +7,8 @@ TaskHandle_t Core::indicator_task_handle;
 InstructionHandler Core::instruction_handler;
 
 #ifdef SERVER
+SemaphoreHandle_t Core::_packet_mutex;
+CtrlPacketArray Core::_packet;
 SemaphoreHandle_t Core::_agents_mutex = NULL;
 volatile AgentData Core::agents[MAX_NUM_AGENTS];
 CommServer Core::comm = CommServer(COMM_PORT);
@@ -36,6 +38,9 @@ Indicator Core::indicator;
 
 void Core::init() {
   #ifdef SERVER
+  _packet.time = 0;
+  _packet.id = 0;
+  _packet_mutex = xSemaphoreCreateMutex();
   _agents_mutex = xSemaphoreCreateMutex();
   #else 
   _ctrl_mutex = xSemaphoreCreateMutex();
@@ -268,13 +273,13 @@ void Core::Wifi_connection_setup() {
 
 bool Core::set_armed(bool armed) {
 #ifdef SERVER
-  if (_state == AGENT_STATE::ARMED)
-    return true;
   InstructPacket arming;
   arming.time = millis();
 
   if (armed) {
-    if (_state == AGENT_STATE::ARMING) {
+    if (_state == AGENT_STATE::ARMED)
+      return true;
+    else if (_state == AGENT_STATE::ARMING) {
       // Waiting on all agents set
       if (check_all_agent_alive(AGENT_STATE::ARMED)) {
         indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_RED);
@@ -287,25 +292,29 @@ bool Core::set_armed(bool armed) {
         return false;
       }
     }
+    else {
+      // Other states, check before arming
+      // 1. Check all agents are available (inited)
+      bool all_agent_available = check_all_agent_alive();
 
-    // 1. Check all agents are available (inited)
-    bool all_agent_available = check_all_agent_alive();
-
-    // 2. Send messages to agents
-    if (all_agent_available && set_state(AGENT_STATE::ARMING)) {
-      arming.instruction = InstructPacket::INSTRUCT_TYPE::ARMING;
-      comm.send(&arming, sizeof(arming));
-      return false;
-    } else {
-      log_e("Trying to set arm with state %d, %s\n", _state,
-            all_agent_available ? "all agents alive" : "some agents lost");
+      // 2. Send messages to agents
+      if (all_agent_available && set_state(AGENT_STATE::ARMING)) {
+        arming.instruction = InstructPacket::INSTRUCT_TYPE::ARMING;
+        comm.send(&arming, sizeof(arming));
+        return false;
+      } else {
+        log_e("Trying to set arm with state %d, %s\n", _state,
+              all_agent_available ? "all agents alive" : "some agents lost");
+      }
     }
   } else {
     // dis-arming
-    indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_BLUE);
-    arming.instruction = InstructPacket::INSTRUCT_TYPE::DISARMING;
-    comm.send(&arming, sizeof(arming));
-    return true;
+    if (_state == AGENT_STATE::ARMED) {
+      indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_BLUE);
+      arming.instruction = InstructPacket::INSTRUCT_TYPE::DISARMING;
+      comm.send(&arming, sizeof(arming));
+      return true;
+    }
   }
   return false;
 #else
@@ -376,13 +385,14 @@ void Core::print_summary() {
       xSemaphoreGive(_agents_mutex);  
     }
     printf("[%d]\t %d\t %d\t %6.2f\t %6.2f, \t%6.2f, \t%6.2f, \t%6.2f\n", 
-      aid, cid, state, fps, q.q0, q.q1, q.q2, q.q3);
+      aid, cid, state, fps, 
+      q.q0, q.q1, q.q2, q.q3);
     
     // Move to next client id
     cid += 1;
   }
 #else
-  log_i("\nAid\t State\t C-FPS\t S-FPS\t Sensor");
+  log_i("\nAid\t State\t C-FPS\t S-FPS\t eta-x\t eta-y\t motor1\t motor2");
   const double eta_x = _ctrl_packet.eta_x;
   const double eta_y = _ctrl_packet.eta_y;
   const double omega_p1 = _ctrl_packet.omega_p1;
@@ -390,7 +400,7 @@ void Core::print_summary() {
   const float ctrl_fps = CommClient::ctrl_health.get_fps();
   const float state_fps = CommClient::state_health.get_fps();
   printf("[%d]\t %d\t %6.2f\t %6.2f, \t%6.2f, \t%6.2f, \t%6.2f, \t%6.2f\n", 
-    _agent_id, _state, eta_x, eta_y, omega_p1, omega_p2, ctrl_fps, state_fps);
+    _agent_id, _state, ctrl_fps, state_fps, eta_x, eta_y, omega_p1, omega_p2);
   
 #endif
 
@@ -483,7 +493,7 @@ void Core::state_feedback(void *parameter) {
 
         // send the packet to server
         if (comm.send(&_state_packet, sizeof(_state_packet))) {
-          CommClient::state_health.feed_data(_state_packet.id, micros(), micros());
+          CommClient::state_health.feed_data(micros());
           last_summary_time = millis();
         }
         xSemaphoreGive(_state_mutex);
