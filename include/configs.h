@@ -76,4 +76,11 @@ const IPAddress subnet(255, 255, 255, 0);
 /* IMU Debugging */
 #define IMU_DEBUG_PRINT
 
+/* Instruction Handler */
+#define EXT_I2C_SDA_PIN 7
+#define EXT_I2C_SCL_PIN 6
+
+#define INSTR_I2C_CLOCK_FREQ 400000 // Hz, using fast mode
+#define INSTR_I2C_SLAVE_ADDR 0x66
+
 #endif

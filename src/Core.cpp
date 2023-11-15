@@ -4,6 +4,7 @@ uint8_t Core::_agent_id;
 AGENT_STATE Core::_state;
 TaskHandle_t Core::websocket_task_handle;
 TaskHandle_t Core::indicator_task_handle;
+InstructionHandler Core::instruction_handler;
 
 #ifdef SERVER
 SemaphoreHandle_t Core::_agents_mutex = NULL;
@@ -172,6 +173,44 @@ void Core::init() {
   log_v("Communication init!");
 #endif 
 
+  /**
+   * This callback function is called when instructions are received from the external 
+   * I2C bus. It directly set commands to the actuators.
+   */
+  instruction_handler.set_instruction_callback([](const Instruction &instruction) {
+    // log_i("Receiving instructions");
+    set_armed(instruction.data.armed);
+
+#ifdef SERVER
+    // log_i("Instruction: %6.2f\t%6.2f\t%6.2f\t%6.2f\t%6.2f\t%6.2f\t%6.2f\t%6.2f\t",
+    //   instruction.data.control[0], instruction.data.control[1], instruction.data.control[2], instruction.data.control[3],
+    //   instruction.data.control[4], instruction.data.control[5], instruction.data.control[6], instruction.data.control[7]);
+    if (xSemaphoreTake(_packet_mutex, portMAX_DELAY) == pdTRUE) {
+      _packet.id += 1;
+      _packet.time = micros();
+
+      for (int i = 0; i < MAX_NUM_AGENTS; i++) {
+        if (instruction.data.type == Instruction::ControlTypes::MOTORS ) {
+          _packet.packets[i].omega_p1 = instruction.data.control[2*i];
+          _packet.packets[i].omega_p2 = instruction.data.control[2*i+1];
+        } else if (instruction.data.type == Instruction::ControlTypes::SERVOS) {
+          _packet.packets[i].eta_x = instruction.data.control[2*i];
+          _packet.packets[i].eta_y = instruction.data.control[2*i+1];
+        }
+        _packet.packets[i].id = _packet.id;
+        _packet.packets[i].time = _packet.time;
+        _packet.packets[i].agent_id = i + 1;
+        
+        // TODO: send data at once
+        Core::comm.send(&_packet.packets[i], sizeof(CtrlPacket));
+      }
+      xSemaphoreGive(_packet_mutex);
+    }
+#endif 
+  });
+
+  instruction_handler.init();
+
   // Initialize daemon tasks
   indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::LONG, INDICATOR_GREEN);
 
@@ -316,7 +355,8 @@ void Core::print_summary() {
   // agent id, client id, agent state
   uint8_t cid = 0;
 
-  log_i("Navigator state: %d\nAid\t Cid\t State\t S-FPS\t Sensor", _state);
+  log_i("Navigator state: %d, M-Instr: %6.2f, S-Instr:%6.2f\nAid\t Cid\t State\t S-FPS\t M-Instr\t S-Instr \t Sensor",
+    _state, instruction_handler.get_motor_fps(), instruction_handler.get_servo_fps());
   for (int i = 0; i < MAX_NUM_AGENTS; i++) {
     // Query agent id by client id. 
     // If cid is an active client, aid is the agent id. Otherwise, aid is -1.
@@ -360,6 +400,27 @@ void Core::print_summary() {
 
   // print heap memory usage
   printf("Free heap: %d\n", ESP.getFreeHeap());
+}
+
+
+void Core::print_instructions() {
+  #ifdef SERVER
+  log_i("\nAid\t eta_x\t eta_y\t motor1\t motor2");
+
+  for (int i = 0; i < MAX_NUM_AGENTS; i++) {
+    double eta_x, eta_y, omega_p1, omega_p2;
+    if (xSemaphoreTake(_packet_mutex, portMAX_DELAY) == pdTRUE) {
+      eta_x = _packet.packets[i].eta_x;
+      eta_y = _packet.packets[i].eta_y;
+      omega_p1 = _packet.packets[i].omega_p1;
+      omega_p2 = _packet.packets[i].omega_p2;
+    }
+    xSemaphoreGive(_packet_mutex);
+    printf("[%d: %d]\t %6.2f\t %6.2f, \t%6.2f, \t%6.2f\n", 
+      i, _state, eta_x, eta_y, omega_p1, omega_p2);
+  }
+  // TODO: This causes crashing
+  #endif
 }
 
 /**

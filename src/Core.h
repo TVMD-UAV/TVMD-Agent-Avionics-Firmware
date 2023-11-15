@@ -17,7 +17,7 @@
 #endif
 
 #include "Indicator.h"
-
+#include "InstructionHandler.h"
 
 class Core {
 public:
@@ -28,6 +28,8 @@ public:
 #else
   static CommClient comm;
 #endif
+
+  static InstructionHandler instruction_handler;
 
 #ifndef SERVER
   static Sensors sensor;
