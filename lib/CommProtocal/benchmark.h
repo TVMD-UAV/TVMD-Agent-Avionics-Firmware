@@ -9,6 +9,8 @@ public:
 
     void feed_data(int pid, uint32_t send_time, uint32_t receive_time);
 
+    void feed_data(uint32_t receive_time);
+
     double get_fps() {return 1e6 * _fps;};
 
     double get_latency() {return 1e-6 * (double)_latency;};
