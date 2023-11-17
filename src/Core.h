@@ -58,6 +58,10 @@ protected:
   static SemaphoreHandle_t _packet_mutex;
 
   static CtrlPacketArray _packet;
+
+  static bool _packet_ready;
+
+  static bool _armed;
 #endif
 
   static uint8_t _agent_id;

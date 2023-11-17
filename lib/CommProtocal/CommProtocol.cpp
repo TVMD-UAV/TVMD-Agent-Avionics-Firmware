@@ -43,35 +43,33 @@ uint8_t CommProtocol::callback_router(uint8_t *payload, size_t length) {
     break;
 
   case sizeof(CtrlPacket): {
-    CtrlPacket ctrl_packet;
-    memcpy((void *)&ctrl_packet, payload, sizeof(CtrlPacket));
-    _ctrl_callback(ctrl_packet);
-    return ctrl_packet.agent_id;
+    const CtrlPacket * const ctrl_packet_ptr = reinterpret_cast<CtrlPacket *>(payload);
+    _ctrl_callback(*ctrl_packet_ptr);
+    return ctrl_packet_ptr->agent_id;
   } break;
 
   case sizeof(StatePacket): {
-    StatePacket state_packet;
-    memcpy((void *)&state_packet, payload, sizeof(StatePacket));
-    _state_callback(state_packet);
-    return state_packet.agent_id;
+    const StatePacket * const state_packet_ptr = reinterpret_cast<StatePacket *>(payload);
+    _state_callback(*state_packet_ptr);
+    return state_packet_ptr->agent_id;
   } break;
 
   case sizeof(InstructPacket): {
-    InstructPacket instruct_packet;
-    memcpy((void *)&instruct_packet, payload, sizeof(InstructPacket));
-    _instruct_callback(instruct_packet);
-    return instruct_packet.agent_id;
+    const InstructPacket * const instruct_packet_ptr = reinterpret_cast<InstructPacket *>(payload);
+    _instruct_callback(*instruct_packet_ptr);
+    return instruct_packet_ptr->agent_id;
   } break;
 
   case sizeof(CtrlPacketArray): {
-    // TODO: bug exists in this callback
-    CtrlPacketArray packet_array;
-    memcpy((void *)&packet_array, payload, sizeof(CtrlPacketArray));
+    // TODO: bug exists in this callback => fixed by using reinterpret_cast<>
+    // I don't know why memcpy() cause Invalid instruction error
+    const CtrlPacketArray * const packet_array = reinterpret_cast<CtrlPacketArray *>(payload);
 
     // extract the data for this agent
     // must not be the SERVER
     if (check_agent_id_valid(_agent_id))
-      _ctrl_callback(packet_array.packets[_agent_id - 1]);
+      _ctrl_callback(packet_array->packets[_agent_id - 1]);
+      // log_d("Agent id: %d\n", _agent_id);
     else 
       log_e("Agent id out of range: %d\n", _agent_id);
     return _agent_id;

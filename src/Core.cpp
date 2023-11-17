@@ -9,6 +9,8 @@ InstructionHandler Core::instruction_handler;
 #ifdef SERVER
 SemaphoreHandle_t Core::_packet_mutex;
 CtrlPacketArray Core::_packet;
+bool Core::_packet_ready{false};
+bool Core::_armed{false};
 SemaphoreHandle_t Core::_agents_mutex = NULL;
 volatile AgentData Core::agents[MAX_NUM_AGENTS];
 CommServer Core::comm = CommServer(COMM_PORT);
@@ -82,11 +84,11 @@ void Core::init() {
 #ifdef COMM_SETUP // Initialize websocket services
 #ifdef SERVER
   /* Setup ctrl callback functions */
-  comm.set_ctrl_callback([](CtrlPacket &packet) {
+  comm.set_ctrl_callback([](const CtrlPacket &packet) {
     // TODO: do something
   });
 
-  comm.set_state_callback([](StatePacket &packet) {
+  comm.set_state_callback([](const StatePacket &packet) {
     uint8_t aidx;
     if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
       aidx = get_aidx(packet.agent_id);
@@ -103,7 +105,7 @@ void Core::init() {
     }
   });
 
-  comm.set_instruct_callback([](InstructPacket &packet) {
+  comm.set_instruct_callback([](const InstructPacket &packet) {
     // TODO: do something
     log_d("Receive instruction %d\n", packet.instruction);
   });
@@ -118,7 +120,7 @@ void Core::init() {
   });
 #else
   /* Setup ctrl callback functions */
-  comm.set_ctrl_callback([](CtrlPacket &packet) {
+  comm.set_ctrl_callback([](const CtrlPacket &packet) {
     if (_state == AGENT_STATE::LOST_CONN) {
       // relive
       set_state(AGENT_STATE::INITED);
@@ -138,11 +140,11 @@ void Core::init() {
     }
   });
 
-  comm.set_state_callback([](StatePacket &packet) {
+  comm.set_state_callback([](const StatePacket &packet) {
     // TODO: do something
   });
 
-  comm.set_instruct_callback([](InstructPacket &packet) {
+  comm.set_instruct_callback([](const InstructPacket &packet) {
     log_v("Receive instruction %d\n", packet.instruction);
     switch (packet.instruction) {
     case InstructPacket::INSTRUCT_TYPE::ARMING:
@@ -193,6 +195,7 @@ void Core::init() {
     if (xSemaphoreTake(_packet_mutex, portMAX_DELAY) == pdTRUE) {
       _packet.id += 1;
       _packet.time = micros();
+      _armed = instruction.data.armed;
 
       for (int i = 0; i < MAX_NUM_AGENTS; i++) {
         if (instruction.data.type == Instruction::ControlTypes::MOTORS ) {
@@ -205,11 +208,13 @@ void Core::init() {
         _packet.packets[i].id = _packet.id;
         _packet.packets[i].time = _packet.time;
         _packet.packets[i].agent_id = i + 1;
-        
-        // TODO: send data at once
-        Core::comm.send(&_packet.packets[i], sizeof(CtrlPacket));
       }
       xSemaphoreGive(_packet_mutex);
+
+      if (instruction.data.type == Instruction::ControlTypes::MOTORS )
+        _packet_ready = true;
+
+      // Core::comm.send(&_packet, sizeof(CtrlPacketArray));
     }
 #endif 
   });
@@ -415,7 +420,7 @@ void Core::print_summary() {
 
 void Core::print_instructions() {
   #ifdef SERVER
-  log_i("\nAid\t eta_x\t eta_y\t motor1\t motor2");
+  log_i("\nAid\t eta_x\t eta_y\t motor1\t motor2\t armed: %s", _armed ? "true" : "false");
 
   for (int i = 0; i < MAX_NUM_AGENTS; i++) {
     double eta_x, eta_y, omega_p1, omega_p2;
@@ -527,6 +532,15 @@ void Core::websocket_loop(void *parameter) {
       // check for all agents armed
       if (check_all_agent_alive(AGENT_STATE::ARMED))
         set_state(AGENT_STATE::ARMED);
+    }
+
+    if (_packet_ready) {
+      if (xSemaphoreTake(_packet_mutex, portMAX_DELAY) == pdTRUE) {
+        _packet.time = micros();
+        Core::comm.send(&_packet, sizeof(CtrlPacketArray));
+        xSemaphoreGive(_packet_mutex);
+      }
+      _packet_ready = false;
     }
 #endif
 
