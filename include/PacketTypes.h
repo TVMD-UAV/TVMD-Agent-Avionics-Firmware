@@ -55,10 +55,6 @@ struct CtrlPacket : public Packet {
   double eta_y;
   double omega_p1;
   double omega_p2;
-  void print(char str[40]) {
-    sprintf(str, "%6.2f, \t%6.2f, \t%6.2f, \t%6.2f", eta_x, eta_y, omega_p1,
-            omega_p2);
-  }
 };
 
 struct CtrlPacketArray : public Packet {

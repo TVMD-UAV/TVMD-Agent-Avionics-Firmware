@@ -59,6 +59,7 @@ void cmdParserRoutine() {
           Core::set_state(AGENT_STATE::INITED); return;
         }
       }
+      #ifndef SERVER
       else if (cmdParser.equalCommand("CALI") && (cmdParser.getParamCount() == 1)) {
         // ESC calibration
         if (strncmp(cmdParser.getCmdParam(1), "1", 1) == 0) {
@@ -90,6 +91,7 @@ void cmdParserRoutine() {
           return;
         }
       }
+      #endif
 
       // print usage
       SERIAL_PORT.println(F(
@@ -97,12 +99,16 @@ void cmdParserRoutine() {
         "SET_ARM [options]\n"
         "- arm\n"
         "- disarm\n\n"
+      #ifndef SERVER
         "CALI [options]\n"
         "Note: Disconnect the server before calibrating ESCs!"
         "- 1: throttle max\n"
-        "- 2: throttle min\n"));
+        "- 2: throttle min\n"
+      #endif
+      ));
     }
   }
 }
+
 
 #endif
