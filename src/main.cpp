@@ -1,13 +1,16 @@
 #include "Core.h"
+#include <CmdParser.hpp>
 
 /*
  * TODO:
  * task scheduler
  */
 
+CmdParser cmdParser;
+void cmdParserRoutine();
 
 void setup() {
-  Serial.begin(115200);
+  SERIAL_PORT.begin(115200);
 
   Core::init();
   log_i("Program start!");
@@ -33,6 +36,73 @@ void loop() {
     last_publish_time = millis();
   }
 #endif
+
+  cmdParserRoutine();
 };
+
+void cmdParserRoutine() {
+  if (SERIAL_PORT.available()) {
+    char line[128];
+    size_t lineLength = SERIAL_PORT.readBytesUntil('\n', line, 127);
+    line[lineLength] = '\0';
+
+    if (cmdParser.parseCmd(line) != CMDPARSER_ERROR) {
+
+      if (cmdParser.equalCommand("SET_ARM") && (cmdParser.getParamCount() == 1)) { 
+        if (strncmp(cmdParser.getCmdParam(1), "arm", 3) == 0) {
+          log_i("Force arming");
+          Core::set_armed(true); return;
+        }
+        else if (strncmp(cmdParser.getCmdParam(1), "disarm", 6) == 0) {
+          log_i("Force disarming");
+          Core::set_armed(false);
+          Core::set_state(AGENT_STATE::INITED); return;
+        }
+      }
+      else if (cmdParser.equalCommand("CALI") && (cmdParser.getParamCount() == 1)) {
+        // ESC calibration
+        if (strncmp(cmdParser.getCmdParam(1), "1", 1) == 0) {
+          if (Core::get_current_state() != AGENT_STATE::LOST_CONN) {
+            log_e("Please disconnect the server first");
+            return;
+          }
+
+          SERIAL_PORT.println(F(
+            "\n\n=====================================\n"));
+          // Raising throttle to max
+          Core::esc_p1.set_armed(true);
+          Core::esc_p2.set_armed(true);
+          Core::esc_p1.calibrate(1);
+          Core::esc_p2.calibrate(1);
+          SERIAL_PORT.println(F(
+            "Throttle max, please connect battery to ESC, and then enter \"CALI 2\""
+            "after hearing double beeps.\n"));
+          return;
+        }
+        else if (strncmp(cmdParser.getCmdParam(1), "2", 1) == 0) {
+          // Lowering throttle to min
+          Core::esc_p1.set_armed(false);
+          Core::esc_p2.set_armed(false);
+          Core::esc_p1.calibrate(2);
+          Core::esc_p2.calibrate(2);
+          SERIAL_PORT.println(F(
+            "ESC configuration complete!\n"));
+          return;
+        }
+      }
+
+      // print usage
+      SERIAL_PORT.println(F(
+        "Usage: \n\n"
+        "SET_ARM [options]\n"
+        "- arm\n"
+        "- disarm\n\n"
+        "CALI [options]\n"
+        "Note: Disconnect the server before calibrating ESCs!"
+        "- 1: throttle max\n"
+        "- 2: throttle min\n"));
+    }
+  }
+}
 
 #endif

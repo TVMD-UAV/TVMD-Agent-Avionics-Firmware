@@ -57,4 +57,16 @@ void ESCMotorDriver::write(const float throttle) {
 
   raw_write(value);
 };
+
+void ESCMotorDriver::calibrate(int stage) {
+  if (stage == 1) {
+    // Raising throttle to max
+    _calibrating = true;
+    raw_write(_config.pmax);
+  } else if (stage == 2) {
+    // Lowering throttle to min
+    raw_write(_config.pmin);
+    _calibrating = false;
+  } 
+}
 #endif // HAS MOTOR
