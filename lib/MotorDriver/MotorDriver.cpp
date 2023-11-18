@@ -7,19 +7,16 @@ MotorDriver::MotorDriver(const MotorConfigs config) :
 
 void MotorDriver::init() {
   // TODO: config check is required
-
-  Servo::attach(_config.pin, _config.pmin, _config.pmax);
-
-  // set angles to middle
-  Servo::write(_idle_value);
+  ledcSetup(_config.channel, MOTOR_PWM_FREQ, MOTOR_PWM_DUTY_RES);
+  ledcAttachPin(_config.pin, _config.channel);
+  raw_write(_idle_value);
 }
 
 void MotorDriver::raw_write(const uint16_t value) {
-  if (armed) {
-    // range constrain
+  if (armed || _calibrating) {
     const uint16_t w = CONSTRAIN_VALUE(value, _config.pmin, _config.pmax);
-
-    Servo::write(w);
+    const uint32_t duty = usToTicks(w);
+    ledcWrite(_config.channel, duty);
   }
 };
 

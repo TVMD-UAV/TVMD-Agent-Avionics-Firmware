@@ -26,14 +26,15 @@ TaskHandle_t Core::state_feedback_handle;
 CommClient Core::comm = CommClient(COMM_PORT, server_IP);
 Sensors Core::sensor = Sensors();
 
+// pin, min, max, mid, value_range, denominator
 ServoMotorDriver Core::x_servo(
-    ServoMotorConfigs(MotorConfigs(MOTOR_X_SERVO_PIN, 1100, 1900, 1500, 180, 4096), 0));
+    ServoMotorConfigs(MotorConfigs(MOTOR_X_SERVO_PIN, 1100, 1900, 1500, 180, 4096, 0), 0));
 ServoMotorDriver Core::y_servo(
-    ServoMotorConfigs(MotorConfigs(MOTOR_Y_SERVO_PIN, 1100, 1900, 1500, 180, 4096), 0));
+    ServoMotorConfigs(MotorConfigs(MOTOR_Y_SERVO_PIN, 1100, 1900, 1500, 180, 4096, 1), 0));
 ESCMotorDriver Core::esc_p1(
-    ESCMotorConfigs(MotorConfigs(MOTOR_ESC_P1_PIN, 1000, 2000, 1500, 100, 4096), 95));
+    ESCMotorConfigs(MotorConfigs(MOTOR_ESC_P1_PIN, 1000, 2000, 1000, 100, 4096, 2), 95));
 ESCMotorDriver Core::esc_p2(
-    ESCMotorConfigs(MotorConfigs(MOTOR_ESC_P2_PIN, 1000, 2000, 1500, 100, 4096), 95));
+    ESCMotorConfigs(MotorConfigs(MOTOR_ESC_P2_PIN, 1000, 2000, 1000, 100, 4096, 3), 95));
 #endif
 
 Indicator Core::indicator;
