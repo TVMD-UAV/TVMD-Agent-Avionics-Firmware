@@ -82,5 +82,6 @@ const IPAddress subnet(255, 255, 255, 0);
 
 #define INSTR_I2C_CLOCK_FREQ 400000 // Hz, using fast mode
 #define INSTR_I2C_SLAVE_ADDR 0x66
+#define INSTR_I2C_BUFFER_SIZE 256
 
 #endif

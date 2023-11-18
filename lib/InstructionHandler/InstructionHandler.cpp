@@ -9,6 +9,7 @@ void InstructionHandler::init() {
 
     Wire.onReceive(onReceive);
     Wire.onRequest(onRequest);
+    Wire.setBufferSize(INSTR_I2C_BUFFER_SIZE);
 
     // uint8_t slaveAddr, int sda, int scl, uint32_t frequency
     Wire.begin(INSTR_I2C_SLAVE_ADDR, EXT_I2C_SDA_PIN, EXT_I2C_SCL_PIN, INSTR_I2C_CLOCK_FREQ);
