@@ -60,6 +60,10 @@ public:
 
   void state_packet_gen(StatePacket *const _packet);
 
+  SensorData *const get_sensor_data() {
+    return &_data;
+  };
+
   bool available() { return _sensor_updated; };
 
   void update();

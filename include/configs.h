@@ -89,4 +89,14 @@ const IPAddress subnet(255, 255, 255, 0);
 #define INSTR_I2C_BUFFER_SIZE 256
 #endif 
 
+/* IMU Echo Handler */
+#define ENABLE_SERVER_IMU_ECHO
+#define I2C_SDA_PIN 9
+#define I2C_SCL_PIN 8
+
+#define I2C_CLOCK_FREQ 400000 // Hz, using fast mode
+#define I2C_SLAVE_ADDR 0x66
+#define I2C_BUFFER_SIZE 256
+
+
 #endif

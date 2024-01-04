@@ -3,14 +3,15 @@
 /**
  * Continuously sending states to the navigator
  */
-#ifndef SERVER
+#if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
 void Core::state_feedback(void *parameter) {
   
   static time_t last_summary_time = 0;
   while (true) {
     sensor.update();
 
-    // Beacon message to server
+#ifndef SERVER
+    // Beacon message to navigator
     #ifdef COMM_SETUP
     if (sensor.available()){
       if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
@@ -26,6 +27,13 @@ void Core::state_feedback(void *parameter) {
         }
         xSemaphoreGive(_state_mutex);
       }
+    }
+    #endif
+    #else
+    // Beacon message to the companion computer
+    if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+      imu_echo.set_imu_data(sensor.get_sensor_data());
+      xSemaphoreGive(_state_mutex);
     }
     #endif
     

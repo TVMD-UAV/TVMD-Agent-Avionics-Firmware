@@ -10,7 +10,10 @@
 
 #define COMM_SETUP
 #ifdef SERVER
-
+#ifdef ENABLE_SERVER_IMU_ECHO
+#include "ImuEchoHandler.h"
+#include "SensorDriver.h"
+#endif 
 #else
 #include "SensorDriver.h"
 #include <MotorDriver.h>
@@ -33,6 +36,12 @@ public:
 
 #ifdef SERVER
     static void send_ctrl(const CtrlPacketArray *const packet);
+    
+#ifdef ENABLE_SERVER_IMU_ECHO
+    static Sensors sensor;
+    static ImuEchoHandler imu_echo;
+#endif
+
 #else
     static Sensors sensor;
     static ServoMotorDriver x_servo;
@@ -67,6 +76,10 @@ protected:
     // Agents' feedbacks including states and sensor data
     static SemaphoreHandle_t _agents_mutex;
     static volatile AgentData agents[MAX_NUM_AGENTS];
+
+    #ifdef ENABLE_SERVER_IMU_ECHO
+    static SemaphoreHandle_t _state_mutex;
+    #endif
 #else
     // The state packet to the navigator (maintained by the sensor callback).
     // When the sensors are ready, the state packet is updated and sent to the
@@ -109,7 +122,7 @@ private:
     static TaskHandle_t websocket_task_handle;
     static void websocket_loop(void *parameter);
 
-#ifndef SERVER
+#if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
     // Routines for state feedback (from an agent to a navigator)
     static TaskHandle_t state_feedback_handle;
     static void state_feedback(void *parameter);
