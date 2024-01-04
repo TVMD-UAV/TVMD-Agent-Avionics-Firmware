@@ -75,6 +75,7 @@ int Sensors::imu_init(){
     imu.begin(IMU_CS_PIN, SPI_PORT);
     if (imu.status != ICM_20948_Stat_Ok) {
       log_e("Failed to initialize IMU, sensor status: %s", imu.statusString());
+      SPI_PORT.end();
       delay(500);
     }
     else

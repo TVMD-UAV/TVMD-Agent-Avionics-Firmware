@@ -10,7 +10,7 @@ CmdParser cmdParser;
 void cmdParserRoutine();
 
 void setup() {
-  SERIAL_PORT.begin(115200);
+  SERIAL_PORT.begin(57600);
 
   Core::init();
   log_i("Program start!");
@@ -109,6 +109,3 @@ void cmdParserRoutine() {
     }
   }
 }
-
-
-#endif
