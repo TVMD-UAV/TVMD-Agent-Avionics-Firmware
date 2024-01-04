@@ -16,6 +16,13 @@ SemaphoreHandle_t Core::_agents_mutex{NULL};
 volatile AgentData Core::agents[MAX_NUM_AGENTS];
 
 CommServer Core::comm = CommServer(COMM_PORT);
+#ifdef ENABLE_SERVER_IMU_ECHO
+Sensors Core::sensor = Sensors();
+ImuEchoHandler Core::imu_echo = ImuEchoHandler();
+SemaphoreHandle_t Core::_state_mutex{NULL};
+TaskHandle_t Core::state_feedback_handle;
+#endif
+
 #else
 SemaphoreHandle_t Core::_ctrl_mutex{NULL};
 SemaphoreHandle_t Core::_state_mutex{NULL};
@@ -30,9 +37,9 @@ Sensors Core::sensor = Sensors();
 
 // pin, min, max, mid, value_range, denominator
 ServoMotorDriver Core::x_servo(
-    ServoMotorConfigs(MotorConfigs(MOTOR_X_SERVO_PIN, 1100, 1900, 1500, 180, 4096, 0), 0));
+    ServoMotorConfigs(MotorConfigs(MOTOR_X_SERVO_PIN, 800, 2200, 1500, 180, 4096, 0), 0));
 ServoMotorDriver Core::y_servo(
-    ServoMotorConfigs(MotorConfigs(MOTOR_Y_SERVO_PIN, 1100, 1900, 1500, 180, 4096, 1), 0));
+    ServoMotorConfigs(MotorConfigs(MOTOR_Y_SERVO_PIN, 800, 2200, 1500, 180, 4096, 1), 0));
 ESCMotorDriver Core::esc_p1(
     ESCMotorConfigs(MotorConfigs(MOTOR_ESC_P1_PIN, 1000, 2000, 1000, 100, 4096, 2), 95));
 ESCMotorDriver Core::esc_p2(
@@ -47,6 +54,9 @@ void Core::init() {
   _packet.id = 0;
   _packet_mutex = xSemaphoreCreateMutex();
   _agents_mutex = xSemaphoreCreateMutex();
+  #ifdef ENABLE_SERVER_IMU_ECHO
+  _state_mutex = xSemaphoreCreateMutex();
+  #endif
   #else 
   _ctrl_mutex = xSemaphoreCreateMutex();
   _state_mutex = xSemaphoreCreateMutex();
@@ -70,14 +80,21 @@ void Core::init() {
   indicator.set_led_state(Indicator::LED_ID::COMM, Indicator::DOUBLE_IMPULSE, INDICATOR_GREEN);
   Wifi_connection_setup();
 
-#ifndef SERVER // Initialize sensors and actuators
+// Initialize sensors
+#if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
   if (sensor.init() != Sensors::SENSOR_ERROR::SENSOR_OK){
     log_e("Sensor init failed!");
     indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::FAST, INDICATOR_RED);  
     while (true) 
       ;
   };
+#endif
 
+#ifdef ENABLE_SERVER_IMU_ECHO
+  imu_echo.init();
+#endif
+
+#ifndef SERVER // Initialize actuators
   x_servo.init();
   y_servo.init();
   esc_p1.init();
@@ -110,7 +127,7 @@ void Core::init() {
                           &websocket_task_handle, /* Task handle. */
                           1); /* Core where the task should run */
 
-#ifndef SERVER
+#if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
   xTaskCreatePinnedToCore(state_feedback,   /* Function to implement the task */
                           "state_feedback", /* Name of the task */
                           5000,             /* Stack size in words */
