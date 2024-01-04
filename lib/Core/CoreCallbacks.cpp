@@ -30,12 +30,13 @@ void Core::comm_callback_setup() {
   });
 
   comm.set_disconnect_callback([](uint8_t agent_id) {
+    set_armed(false);
+    set_state(AGENT_STATE::LOST_CONN);
+    
     if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
       agents[get_aidx(agent_id)].packet.state = AGENT_STATE::LOST_CONN;
       xSemaphoreGive(_agents_mutex);
     }
-    set_armed(false);
-    set_state(AGENT_STATE::LOST_CONN);
   });
 }
 
@@ -56,6 +57,7 @@ void Core::instruction_callback_setup() {
       _packet.id += 1;
       _packet.time = micros();
       _armed = instruction.data.armed;
+      _packet.armed = instruction.data.armed;
 
       for (int i = 0; i < MAX_NUM_AGENTS; i++) {
         if (instruction.data.type == Instruction::ControlTypes::MOTORS ) {
@@ -88,10 +90,6 @@ void Core::comm_callback_setup() {
     } else {
       if (packet.agent_id == _agent_id) {
         _ctrl_packet = packet;
-        // Core::x_servo.write(packet.eta_x);
-        // Core::y_servo.write(packet.eta_y);
-        // Core::esc_p1.write(packet.omega_p1);
-        // Core::esc_p2.write(packet.omega_p2);
         Core::x_servo.raw_write(packet.eta_x);
         Core::y_servo.raw_write(packet.eta_y);
         Core::esc_p1.raw_write(packet.omega_p1);
@@ -134,7 +132,9 @@ void Core::comm_callback_setup() {
   });
 }
 
-void Core::instruction_callback_setup() {};
+void Core::instruction_callback_setup() {
+  instruction_handler.set_instruction_callback([](const Instruction &instruction) {});
+};
 
 #endif
 

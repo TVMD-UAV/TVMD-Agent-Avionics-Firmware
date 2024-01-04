@@ -45,9 +45,8 @@ void InstructionHandler::onReceive(int numBytes) {
         default: {
             log_e("Received invalid instruction size: %d", numBytes);
             // clear the buffer
-            while (Wire.available()) {
-                Wire.read();
-            }
+            Instruction instruction;
+            Wire.readBytes(instruction.raw, numBytes);
         } break;
     }
 }

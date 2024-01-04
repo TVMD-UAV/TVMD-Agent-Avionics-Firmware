@@ -20,6 +20,15 @@ void MotorDriver::raw_write(const uint16_t value) {
   }
 };
 
+void MotorDriver::set_armed(bool _arm) {
+  if (!_arm) {
+    // set idle value
+    raw_write(_idle_value);
+  }
+  
+  if (!_calibrating) armed = _arm;
+}
+
 
 ServoMotorDriver::ServoMotorDriver(const ServoMotorConfigs config): 
   MotorDriver(config) 

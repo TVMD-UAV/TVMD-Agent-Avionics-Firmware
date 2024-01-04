@@ -62,9 +62,7 @@ public:
 
   virtual void raw_write(const uint16_t);
 
-  void set_armed(bool _arm) {
-    if (!_calibrating) armed = _arm;
-  };
+  void set_armed(bool _arm);
 
 protected:
   bool armed{false};

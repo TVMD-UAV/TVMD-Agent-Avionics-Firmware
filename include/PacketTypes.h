@@ -58,6 +58,7 @@ struct CtrlPacket : public Packet {
 };
 
 struct CtrlPacketArray : public Packet {
+  uint8_t armed;
   CtrlPacket packets[MAX_NUM_AGENTS];
 };
 

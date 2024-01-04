@@ -40,12 +40,10 @@ bool Core::set_armed(bool armed) {
     }
   } else {
     // dis-arming
-    if (_state == AGENT_STATE::ARMED) {
-      indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_BLUE);
-      arming.instruction = InstructPacket::INSTRUCT_TYPE::DISARMING;
-      comm.send(&arming, sizeof(arming));
-      return true;
-    }
+    indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_BLUE);
+    arming.instruction = InstructPacket::INSTRUCT_TYPE::DISARMING;
+    comm.send(&arming, sizeof(arming));
+    return true;
   }
   return false;
 #else
