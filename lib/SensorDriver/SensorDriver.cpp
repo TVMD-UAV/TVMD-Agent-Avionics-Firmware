@@ -126,7 +126,7 @@ int Sensors::imu_init(){
     success &= (imu.setDMPODRrate(DMP_ODR_Reg_Accel, 0) == ICM_20948_Stat_Ok); // Set to the maximum
     success &= (imu.setDMPODRrate(DMP_ODR_Reg_Gyro, 0) == ICM_20948_Stat_Ok); // Set to the maximum
     //success &= (imu.setDMPODRrate(DMP_ODR_Reg_Gyro_Calibr, 0) == ICM_20948_Stat_Ok); // Set to the maximum
-    success &= (imu.setDMPODRrate(DMP_ODR_Reg_Cpass, 0) == ICM_20948_Stat_Ok); // Set to the maximum
+    // success &= (imu.setDMPODRrate(DMP_ODR_Reg_Cpass, 0) == ICM_20948_Stat_Ok); // Set to the maximum
     //success &= (imu.setDMPODRrate(DMP_ODR_Reg_Cpass_Calibr, 0) == ICM_20948_Stat_Ok); // Set to the maximum
 
     // Enable the FIFO
@@ -289,6 +289,15 @@ int Sensors::update() {
           }
         }
 
+        // if ((data.header & DMP_header_bitmap_Compass) > 0) {
+        //   // We have asked for orientation data so we should receive Quat9 
+        //   if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+        //     _data.compass.x = (float)data.Compass.Data.X;
+        //     _data.compass.y = (float)data.Compass.Data.Y;
+        //     _data.compass.z = (float)data.Compass.Data.Z;
+        //     xSemaphoreGive(_data_mutex);
+        //   }
+        // }
       } else {
         return -1;
       }
