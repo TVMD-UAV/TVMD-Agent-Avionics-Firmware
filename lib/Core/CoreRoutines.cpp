@@ -8,37 +8,36 @@ void Core::state_feedback(void *parameter) {
   
   static time_t last_summary_time = 0;
   while (true) {
-    sensor.update();
+    if (sensor.update() == 0) {
+      #ifndef SERVER
+      // Beacon message to navigator
+      #ifdef COMM_SETUP
+      if (sensor.available()){
+        if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+          sensor.state_packet_gen(&_state_packet);
+          _state_packet.state = _state;
+          _state_packet.agent_id = _agent_id;
+          _state_packet.id += 1;
 
-#ifndef SERVER
-    // Beacon message to navigator
-    #ifdef COMM_SETUP
-    if (sensor.available()){
-      if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
-        sensor.state_packet_gen(&_state_packet);
-        _state_packet.state = _state;
-        _state_packet.agent_id = _agent_id;
-        _state_packet.id += 1;
-
-        // send the packet to server
-        if (comm.send(&_state_packet, sizeof(_state_packet))) {
-          CommClient::state_health.feed_data(micros());
-          last_summary_time = millis();
+          // send the packet to server
+          if (comm.send(&_state_packet, sizeof(_state_packet))) {
+            CommClient::state_health.feed_data(micros());
+            last_summary_time = millis();
+          }
+          xSemaphoreGive(_state_mutex);
         }
+      }
+      #endif
+      #else
+      // Beacon message to the companion computer
+      if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+        imu_echo.set_imu_data(sensor.get_sensor_data());
         xSemaphoreGive(_state_mutex);
       }
+      #endif
     }
-    #endif
-    #else
-    // Beacon message to the companion computer
-    if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
-      imu_echo.set_imu_data(sensor.get_sensor_data());
-      xSemaphoreGive(_state_mutex);
-    }
-    #endif
-    
     // pass control to another task waiting to be executed
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(2 / portTICK_PERIOD_MS);
     // yield();
   }
 }
