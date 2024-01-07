@@ -66,7 +66,7 @@ public:
 
   bool available() { return _sensor_updated; };
 
-  void update();
+  int update();
 
 protected:
   SemaphoreHandle_t _data_mutex;

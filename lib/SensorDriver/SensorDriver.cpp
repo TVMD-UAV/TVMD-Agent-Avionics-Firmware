@@ -206,7 +206,7 @@ void Sensors::imu_int_handler(){
  * @brief Update the sensor data
  * 
  */
-void Sensors::update() {
+int Sensors::update() {
   static time_t last_update_time = millis();
 
   // TODO: load data into packet
@@ -232,7 +232,9 @@ void Sensors::update() {
       //    readDMPdataFromFIFO will return ICM_20948_Stat_Ok if a valid frame was read.
       //    readDMPdataFromFIFO will return ICM_20948_Stat_FIFOMoreDataAvail if a valid frame was read _and_ the FIFO contains more (unread) data.
       icm_20948_DMP_data_t data;
-      imu.readDMPdataFromFIFO(&data);
+      if (imu.readDMPdataFromFIFO(&data) == ICM_20948_Stat_FIFONoDataAvail) {
+        return -1;
+      };
 
       if ((imu.status == ICM_20948_Stat_Ok) || (imu.status == ICM_20948_Stat_FIFOMoreDataAvail)) // Was valid data available?
       {
@@ -287,15 +289,8 @@ void Sensors::update() {
           }
         }
 
-        if ((data.header & DMP_header_bitmap_Compass) > 0) {
-          // We have asked for orientation data so we should receive Quat9 
-          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
-            _data.compass.x = (float)data.Compass.Data.X;
-            _data.compass.y = (float)data.Compass.Data.Y;
-            _data.compass.z = (float)data.Compass.Data.Z;
-            xSemaphoreGive(_data_mutex);
-          }
-        }
+      } else {
+        return -1;
       }
 
       imu.clearInterrupts();  // This would be efficient... but not compatible with Uno
@@ -313,4 +308,5 @@ void Sensors::update() {
     last_update_time = millis();
     _sensor_updated = true;
   }
+  return 0;
 }

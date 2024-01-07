@@ -132,7 +132,7 @@ void Core::init() {
                           "state_feedback", /* Name of the task */
                           5000,             /* Stack size in words */
                           NULL,             /* Task input parameter */
-                          5,                /* Priority of the task */
+                          3,                /* Priority of the task */
                           &state_feedback_handle, /* Task handle. */
                           1); /* Core where the task should run */
 #endif
