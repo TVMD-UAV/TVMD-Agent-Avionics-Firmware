@@ -118,6 +118,9 @@ private:
     static void instruction_callback_setup();
     static void comm_callback_setup();
 
+    static TaskHandle_t instruction_handle;
+    static void instruction_loop(void *parameter);
+
     // Routines for websocket services
     static TaskHandle_t websocket_task_handle;
     static void websocket_loop(void *parameter);
@@ -128,8 +131,11 @@ private:
     static void state_feedback(void *parameter);
 #endif
 
-  static TaskHandle_t indicator_task_handle;
-  static void indicator_update(void *parameter);
+    static TaskHandle_t indicator_task_handle;
+    static void indicator_update(void *parameter);
+
+    static TaskHandle_t regular_task_handle;
+    static void regular_update(void *parameter);
 };
 
 #endif

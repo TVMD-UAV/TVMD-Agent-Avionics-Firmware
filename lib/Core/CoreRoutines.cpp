@@ -1,5 +1,13 @@
 #include "Core.h"
 
+TaskHandle_t Core::websocket_task_handle;
+TaskHandle_t Core::indicator_task_handle;
+TaskHandle_t Core::instruction_handle;
+TaskHandle_t Core::regular_task_handle;
+
+#if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
+TaskHandle_t Core::state_feedback_handle;
+#endif
 /**
  * Continuously sending states to the navigator
  */
@@ -47,8 +55,24 @@ void Core::websocket_loop(void *parameter) {
 #ifdef COMM_SETUP
   for (;;) {
     comm.update();
+    // To allow other threads have chances to join
+    vTaskDelay(2 / portTICK_PERIOD_MS);
+    // yield();
+  }
+#endif
+}
 
-#ifdef SERVER
+void Core::instruction_loop(void *parameter) {
+  for (;;) {
+    instruction_handler.update();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    // yield();
+  }
+}
+
+void Core::regular_update(void *parameter) {
+  for (;;) {
+    #ifdef SERVER
     // check for connection lost
     for (int i = 0; i < MAX_NUM_AGENTS; i++) {  
       if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
@@ -72,12 +96,8 @@ void Core::websocket_loop(void *parameter) {
       }
       _packet_ready = false;
     }
-#endif
-
-    // To allow other threads have chances to join
-    
-    vTaskDelay(1 / portTICK_PERIOD_MS);
+    #endif
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     // yield();
   }
-#endif
-}
+};

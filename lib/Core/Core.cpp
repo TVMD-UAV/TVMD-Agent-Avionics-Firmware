@@ -2,9 +2,8 @@
 
 uint8_t Core::_agent_id;
 AGENT_STATE Core::_state;
-TaskHandle_t Core::websocket_task_handle;
-TaskHandle_t Core::indicator_task_handle;
 InstructionHandler Core::instruction_handler;
+
 
 #ifdef SERVER
 SemaphoreHandle_t Core::_packet_mutex;
@@ -16,11 +15,11 @@ SemaphoreHandle_t Core::_agents_mutex{NULL};
 volatile AgentData Core::agents[MAX_NUM_AGENTS];
 
 CommServer Core::comm = CommServer(COMM_PORT);
+
 #ifdef ENABLE_SERVER_IMU_ECHO
 Sensors Core::sensor = Sensors();
 ImuEchoHandler Core::imu_echo = ImuEchoHandler();
 SemaphoreHandle_t Core::_state_mutex{NULL};
-TaskHandle_t Core::state_feedback_handle;
 #endif
 
 #else
@@ -29,8 +28,6 @@ SemaphoreHandle_t Core::_state_mutex{NULL};
 
 StatePacket Core::_state_packet;
 CtrlPacket Core::_ctrl_packet;
-
-TaskHandle_t Core::state_feedback_handle;
 
 CommClient Core::comm = CommClient(COMM_PORT, server_IP);
 Sensors Core::sensor = Sensors();
@@ -112,31 +109,47 @@ void Core::init() {
 
   instruction_callback_setup();
 
-  instruction_handler.init();
-
   // Initialize daemon tasks
   indicator.set_led_state(Indicator::LED_ID::BOTH, Indicator::LONG, INDICATOR_GREEN);
 
 #pragma region[task hook]
   // TODO: check stack usages
-  xTaskCreatePinnedToCore(websocket_loop, /* Function to implement the task */
+  xTaskCreatePinnedToCore(websocket_loop,         /* Function to implement the task */
                           "websocket_updating",   /* Name of the task */
                           7000,                   /* Stack size in words */
                           NULL,                   /* Task input parameter */
                           5,                      /* Priority of the task */
                           &websocket_task_handle, /* Task handle. */
-                          1); /* Core where the task should run */
+                          1);                     /* Core where the task should run */
+
+  xTaskCreatePinnedToCore(instruction_loop,       /* Function to implement the task */
+                          "instruction_updating", /* Name of the task */
+                          1000,                   /* Stack size in words */
+                          NULL,                   /* Task input parameter */
+                          1,                      /* Priority of the task */
+                          &instruction_handle,    /* Task handle. */
+                          0);                     /* Core where the task should run */
 
 #if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
-  xTaskCreatePinnedToCore(state_feedback,   /* Function to implement the task */
-                          "state_feedback", /* Name of the task */
-                          5000,             /* Stack size in words */
-                          NULL,             /* Task input parameter */
-                          3,                /* Priority of the task */
+  xTaskCreatePinnedToCore(state_feedback,         /* Function to implement the task */
+                          "state_feedback",       /* Name of the task */
+                          5000,                   /* Stack size in words */
+                          NULL,                   /* Task input parameter */
+                          3,                      /* Priority of the task */
                           &state_feedback_handle, /* Task handle. */
-                          1); /* Core where the task should run */
+                          0);                     /* Core where the task should run */
 #endif
+
+  xTaskCreatePinnedToCore(regular_update,         /* Function to implement the task */
+                          "regular_update",       /* Name of the task */
+                          2000,                   /* Stack size in words */
+                          NULL,                   /* Task input parameter */
+                          2,                      /* Priority of the task */
+                          &regular_task_handle,   /* Task handle. */
+                          0);                     /* Core where the task should run */
   
+  instruction_handler.init();
+
   // System start up complete
   indicator.set_led_state(Indicator::LED_ID::COMM, Indicator::IMPULSE, INDICATOR_BLUE);
   indicator.set_led_state(Indicator::LED_ID::DATA, Indicator::SINE_WAVE, INDICATOR_BLUE);

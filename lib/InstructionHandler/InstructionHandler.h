@@ -8,6 +8,7 @@
 // #include <esp32-hal-i2c.h>
 // #include <esp32-hal-i2c-slave.h>
 #include "benchmark.h"
+#include "freertos/semphr.h"
 
 union Instruction {
     enum ControlTypes {UNKNOWN=0, MOTORS, SERVOS};
@@ -23,7 +24,9 @@ typedef std::function<void(const Instruction &)> InstructionCallbackFunc;
 
 class InstructionHandler {
 public:
-    InstructionHandler() {};
+    InstructionHandler() {
+        _instr_mutex = xSemaphoreCreateMutex();
+    };
 
     void init();
 
@@ -35,7 +38,13 @@ public:
 
     double get_servo_fps() { return _servos_instr_health.get_fps(); };
 
+    void update();
+
 private:
+    static uint8_t _recv_trigger;
+    static Instruction _instruction;
+    static SemaphoreHandle_t _instr_mutex;
+
     static InstructionCallbackFunc _instruct_callback;
 
     static void onReceive(int numBytes);

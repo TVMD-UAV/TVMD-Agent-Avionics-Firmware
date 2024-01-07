@@ -4,6 +4,10 @@ InstructionCallbackFunc InstructionHandler::_instruct_callback = NULL;
 Benchmark InstructionHandler::_motors_instr_health;
 Benchmark InstructionHandler::_servos_instr_health;
 
+uint8_t InstructionHandler::_recv_trigger;
+SemaphoreHandle_t InstructionHandler::_instr_mutex{nullptr};
+Instruction InstructionHandler::_instruction;
+
 void InstructionHandler::init() {
     assert(_instruct_callback != NULL);
 
@@ -16,41 +20,53 @@ void InstructionHandler::init() {
 
     _motors_instr_health = Benchmark(NUM_HEALTH_CHECK);
     _servos_instr_health = Benchmark(NUM_HEALTH_CHECK);
-
-    // if (i2cInit(0, EXT_I2C_SDA_PIN, EXT_I2C_SCL_PIN, INSTR_I2C_CLOCK_FREQ) != ESP_OK) {
-        
-    //     Serial.println("I2C init failed");
-    //     return;
-    // }
 }
 
 void InstructionHandler::onReceive(int numBytes) {
     // log_i("Receiving %d bytes", numBytes);
     switch (numBytes) {
         case sizeof(Instruction): {
-            Instruction instruction;
-            Wire.readBytes(instruction.raw, numBytes);
-            if (instruction.data.type == Instruction::ControlTypes::MOTORS) {
-                _motors_instr_health.feed_data(micros());
-            } else if (instruction.data.type == Instruction::ControlTypes::SERVOS) {
-                _servos_instr_health.feed_data(micros());
-            } else {
-                log_e("Received invalid instruction type: %d", instruction.data.type);
-                return;
+            if (xSemaphoreTake(_instr_mutex, 0) == pdTRUE) {
+                Wire.readBytes(_instruction.raw, numBytes);
+                _recv_trigger = true;
+                xSemaphoreGive(_instr_mutex);
+                
+                if (_instruction.data.type == Instruction::ControlTypes::MOTORS) {
+                    _motors_instr_health.feed_data(micros());
+                } else if (_instruction.data.type == Instruction::ControlTypes::SERVOS) {
+                    _servos_instr_health.feed_data(micros());
+                } else {
+                    // log_e("Received invalid instruction type: %d", instruction.data.type);
+                    Wire.flush();
+                    return;
+                }
             }
-            // log_i("Received instruction: %d, %d", instruction.data.armed, instruction.data.type);
-            _instruct_callback(instruction);
         } break;
 
         default: {
-            log_e("Received invalid instruction size: %d", numBytes);
+            // log_e("Received invalid instruction size: %d", numBytes);
             // clear the buffer
-            Instruction instruction;
-            Wire.readBytes(instruction.raw, numBytes);
+            // Instruction instruction;
+            // Wire.readBytes(instruction.raw, numBytes);
+            Wire.flush();
         } break;
     }
+    // Wire.flush();
 }
 
 void InstructionHandler::onRequest() {
-    log_i("Requesting");
+    // log_i("Requesting");
+}
+
+void InstructionHandler::update() { 
+    if (_recv_trigger) {
+        // pulling
+        if (xSemaphoreTake(_instr_mutex, 0) == pdTRUE) {
+            
+            // log_i("Received instruction: %d, %d", instruction.data.armed, instruction.data.type);
+            _instruct_callback(_instruction);    
+            _recv_trigger = false;
+            xSemaphoreGive(_instr_mutex);
+        }
+    }
 }
