@@ -112,12 +112,14 @@ bool Core::set_state(AGENT_STATE target) {
 bool Core::check_all_agent_alive(AGENT_STATE target) {
   bool all_agent_available = true;
   
-  if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+  if (xSemaphoreTake(_agents_mutex, 0) == pdTRUE) {
     for (int i = 0; i < MAX_NUM_AGENTS; i++) {
       all_agent_available &= (agents[i].packet.state == target);
     }
     xSemaphoreGive(_agents_mutex);
+    return all_agent_available;
+  } else {
+    return false;
   }
-  return all_agent_available;
 }
 #endif

@@ -9,7 +9,7 @@ void Core::comm_callback_setup() {
 
   comm.set_state_callback([](const StatePacket &packet) {
     uint8_t aidx;
-    if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(_agents_mutex, 0) == pdTRUE) {
       aidx = get_aidx(packet.agent_id);
       memcpy((void*)&(agents[aidx].packet), &packet, sizeof(packet));
       CommServer::state_health[aidx].feed_data(packet.id, packet.time, micros());
@@ -33,7 +33,7 @@ void Core::comm_callback_setup() {
     set_armed(false);
     set_state(AGENT_STATE::LOST_CONN);
     
-    if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(_agents_mutex, 0) == pdTRUE) {
       agents[get_aidx(agent_id)].packet.state = AGENT_STATE::LOST_CONN;
       xSemaphoreGive(_agents_mutex);
     }
@@ -53,7 +53,7 @@ void Core::instruction_callback_setup() {
     // log_i("Instruction: %6.2f\t%6.2f\t%6.2f\t%6.2f\t%6.2f\t%6.2f\t%6.2f\t%6.2f\t",
     //   instruction.data.control[0], instruction.data.control[1], instruction.data.control[2], instruction.data.control[3],
     //   instruction.data.control[4], instruction.data.control[5], instruction.data.control[6], instruction.data.control[7]);
-    if (xSemaphoreTake(_packet_mutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(_packet_mutex, 0) == pdTRUE) {
       _packet.id += 1;
       _packet.time = micros();
       _armed = instruction.data.armed;

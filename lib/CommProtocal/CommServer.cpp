@@ -71,7 +71,7 @@ void CommServer::callback_router(uint8_t client_id, uint8_t *payload,
 
   // set agent id map
   if (agent_id_map[client_id] == 0) {
-    if (check_agent_id_valid(agent_id) && (xSemaphoreTake(_map_mutex, portMAX_DELAY) == pdTRUE)){
+    if (check_agent_id_valid(agent_id) && (xSemaphoreTake(_map_mutex, 0) == pdTRUE)){
       agent_id_map[client_id] = agent_id;
       xSemaphoreGive(_map_mutex);
     }
