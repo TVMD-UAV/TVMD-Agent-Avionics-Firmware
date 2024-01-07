@@ -19,7 +19,7 @@ void Indicator::update() {
         for (int i=0; i<LED_COUNT; ++i) {
             uint32_t color = 0;
 
-            if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+            if (xSemaphoreTake(_state_mutex, 0) == pdTRUE) {
                 if (_state[i] < LED_STATE_NUM){
                     if (LED_BIT_MAP[_state[i]] & (1 << _phase[i])) {
                         color = _color[i];
