@@ -1,6 +1,6 @@
 #ifndef COMM_PROTOCOL
 
-#include "benchmark.h"
+#include "Perf.hpp"
 #include "configs.h"
 #include "freertos/semphr.h"
 
@@ -100,7 +100,7 @@ protected:
  */
 class CommServer : public CommProtocol {
 public:
-  static Benchmark state_health[MAX_NUM_AGENTS];
+  static Perf state_health[MAX_NUM_AGENTS];
   static const uint8_t MAX_NUM_CID = 10;
 
   CommServer(uint16_t port);
@@ -162,8 +162,8 @@ public:
   CommClient(uint16_t port, const IPAddress serv_ip)
       : webSocket(), CommProtocol(), _port(port), _serv_addr(serv_ip){};
 
-  static Benchmark ctrl_health;
-  static Benchmark state_health;
+  static Perf ctrl_health;
+  static Perf state_health;
 
   // Setup event listener
   void init(uint8_t agent_id);

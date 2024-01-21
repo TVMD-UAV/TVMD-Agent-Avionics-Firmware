@@ -3,7 +3,7 @@
 #ifdef SERVER
 SemaphoreHandle_t CommServer::_map_mutex = NULL;
 uint8_t CommServer::agent_id_map[10] = {0};
-Benchmark CommServer::state_health[MAX_NUM_AGENTS];
+Perf CommServer::state_health[MAX_NUM_AGENTS];
 
 CommServer::CommServer(uint16_t port) : webSocket(port), CommProtocol(){
 };
@@ -59,7 +59,7 @@ void CommServer::init(uint8_t agent_id) {
       });
 
   for (int i = 0; i < MAX_NUM_AGENTS; i++) {
-    state_health[i] = Benchmark(NUM_HEALTH_CHECK);
+    state_health[i] = Perf(NUM_HEALTH_CHECK);
   }
 
   CommProtocol::init(agent_id);

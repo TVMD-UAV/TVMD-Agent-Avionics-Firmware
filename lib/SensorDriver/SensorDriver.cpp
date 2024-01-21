@@ -1,6 +1,6 @@
 #include "SensorDriver.h"
 
-Benchmark Sensors::imu_health;
+Perf Sensors::imu_health;
 volatile bool Sensors::isrFired = false;
 volatile bool Sensors::sensorSleep = false;
 volatile bool Sensors::canToggle = false;

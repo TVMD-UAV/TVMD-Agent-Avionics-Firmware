@@ -1,8 +1,8 @@
 #include "InstructionHandler.h"
 
 InstructionCallbackFunc InstructionHandler::_instruct_callback = NULL;
-Benchmark InstructionHandler::_motors_instr_health;
-Benchmark InstructionHandler::_servos_instr_health;
+Perf InstructionHandler::_motors_instr_health;
+Perf InstructionHandler::_servos_instr_health;
 
 uint8_t InstructionHandler::_recv_trigger;
 SemaphoreHandle_t InstructionHandler::_instr_mutex{nullptr};
@@ -18,8 +18,8 @@ void InstructionHandler::init() {
     // uint8_t slaveAddr, int sda, int scl, uint32_t frequency
     Wire.begin(INSTR_I2C_SLAVE_ADDR, EXT_I2C_SDA_PIN, EXT_I2C_SCL_PIN, INSTR_I2C_CLOCK_FREQ);
 
-    _motors_instr_health = Benchmark(NUM_HEALTH_CHECK);
-    _servos_instr_health = Benchmark(NUM_HEALTH_CHECK);
+    _motors_instr_health = Perf(NUM_HEALTH_CHECK);
+    _servos_instr_health = Perf(NUM_HEALTH_CHECK);
 }
 
 void InstructionHandler::onReceive(int numBytes) {

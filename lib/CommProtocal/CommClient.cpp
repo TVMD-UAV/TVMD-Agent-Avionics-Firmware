@@ -1,7 +1,7 @@
 #include "CommProtocol.h"
 
-Benchmark CommClient::ctrl_health;
-Benchmark CommClient::state_health;
+Perf CommClient::ctrl_health;
+Perf CommClient::state_health;
 
 void CommClient::init(uint8_t agent_id) {
   webSocket.begin(_serv_addr, _port, "/");
@@ -45,8 +45,8 @@ void CommClient::init(uint8_t agent_id) {
   });
   webSocket.setReconnectInterval(1000);
 
-  ctrl_health = Benchmark(NUM_HEALTH_CHECK);
-  state_health = Benchmark(NUM_HEALTH_CHECK);
+  ctrl_health = Perf(NUM_HEALTH_CHECK);
+  state_health = Perf(NUM_HEALTH_CHECK);
 
   CommProtocol::init(agent_id);
 }

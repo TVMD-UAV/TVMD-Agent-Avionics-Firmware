@@ -12,7 +12,7 @@ void Core::comm_callback_setup() {
     if (xSemaphoreTake(_agents_mutex, 0) == pdTRUE) {
       aidx = get_aidx(packet.agent_id);
       memcpy((void*)&(agents[aidx].packet), &packet, sizeof(packet));
-      CommServer::state_health[aidx].feed_data(packet.id, packet.time, micros());
+      CommServer::state_health[aidx].feed_data(micros());
       xSemaphoreGive(_agents_mutex);
     }
     agents[aidx].packet.time = millis();

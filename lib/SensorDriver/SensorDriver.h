@@ -32,7 +32,7 @@
 #include "freertos/semphr.h"
 #include "CommProtocol.h"
 #include "PacketTypes.h"
-#include "benchmark.h"
+#include "Perf.hpp"
 
 #define PRESSURE_TO_ALTITUDE(PRESSURE, SEA_LEVEL_HPA)                          \
   (44330 * (1.0 - pow(((PRESSURE) / 100) / (SEA_LEVEL_HPA), 0.1903)))
@@ -47,7 +47,7 @@ constexpr uint16_t const_ceil(float num)
 class Sensors {
 public:
 
-  static Benchmark imu_health;
+  static Perf imu_health;
 
   enum SENSOR_ERROR {
     SENSOR_OK = 0,

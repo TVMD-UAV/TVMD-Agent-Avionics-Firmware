@@ -7,7 +7,7 @@
 // #include <esp_err.h>
 // #include <esp32-hal-i2c.h>
 // #include <esp32-hal-i2c-slave.h>
-#include "benchmark.h"
+#include "Perf.hpp"
 #include "freertos/semphr.h"
 
 union Instruction {
@@ -51,8 +51,8 @@ private:
 
     static void onRequest();
 
-    static Benchmark _motors_instr_health;
-    static Benchmark _servos_instr_health;
+    static Perf _motors_instr_health;
+    static Perf _servos_instr_health;
 };
 
 #endif
