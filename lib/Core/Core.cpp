@@ -214,8 +214,13 @@ void Core::print_summary() {
   // agent id, client id, agent state
   uint8_t cid = 0;
 
-  log_i("Navigator state: %d, M-Instr: %6.2f, S-Instr:%6.2f\nAid\t Cid\t State\t S-FPS\t M-Instr\t S-Instr \t Sensor",
+  #ifdef ENABLE_SERVER_IMU_ECHO
+  log_i("\nNavigator state: %d, M-Instr: %6.2f, S-Instr:%6.2f, IMU-fps: %6.2f\nAid\t Cid\t State\t S-FPS\t M-Instr\t S-Instr \t Sensor",
+    _state, instruction_handler.get_motor_fps(), instruction_handler.get_servo_fps(), sensor.imu_health.get_fps());
+  #else 
+  log_i("\nNavigator state: %d, M-Instr: %6.2f, S-Instr:%6.2f\nAid\t Cid\t State\t S-FPS\t M-Instr\t S-Instr \t Sensor",
     _state, instruction_handler.get_motor_fps(), instruction_handler.get_servo_fps());
+  #endif
   for (int i = 0; i < MAX_NUM_AGENTS; i++) {
     // Query agent id by client id. 
     // If cid is an active client, aid is the agent id. Otherwise, aid is -1.

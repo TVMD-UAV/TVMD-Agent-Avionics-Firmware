@@ -90,7 +90,7 @@ const IPAddress subnet(255, 255, 255, 0);
 #endif 
 
 /* IMU Echo Handler */
-#define ENABLE_SERVER_IMU_ECHO
+// #define ENABLE_SERVER_IMU_ECHO
 #define I2C_SDA_PIN 9
 #define I2C_SCL_PIN 8
 
