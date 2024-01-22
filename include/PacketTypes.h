@@ -44,7 +44,7 @@ struct Packet {
   virtual ~Packet() = default;
 };
 
-enum AGENT_STATE { STARTING = 0, INITED, LOST_CONN, ARMING, ARMED };
+enum AGENT_STATE { STARTING = 0, LOST_CONN, INITED, ARMING, ARMED };
 
 /* Steps to add a new packet
  * 1. Add the packet struct here
@@ -58,7 +58,7 @@ struct CtrlPacket : public Packet {
 };
 
 struct CtrlPacketArray : public Packet {
-  uint8_t armed;
+  AGENT_STATE state;
   CtrlPacket packets[MAX_NUM_AGENTS];
 };
 

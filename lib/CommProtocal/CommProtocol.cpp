@@ -44,7 +44,7 @@ uint8_t CommProtocol::callback_router(uint8_t *payload, size_t length) {
 
   case sizeof(CtrlPacket): {
     const CtrlPacket * const ctrl_packet_ptr = reinterpret_cast<CtrlPacket *>(payload);
-    _ctrl_callback(*ctrl_packet_ptr);
+    _ctrl_callback(*ctrl_packet_ptr, AGENT_STATE::INITED);
     return ctrl_packet_ptr->agent_id;
   } break;
 
@@ -68,7 +68,7 @@ uint8_t CommProtocol::callback_router(uint8_t *payload, size_t length) {
     // extract the data for this agent
     // must not be the SERVER
     if (check_agent_id_valid(_agent_id))
-      _ctrl_callback(packet_array->packets[_agent_id - 1]);
+      _ctrl_callback(packet_array->packets[_agent_id - 1], packet_array->state);
       // log_d("Agent id: %d\n", _agent_id);
     else 
       log_e("Agent id out of range: %d\n", _agent_id);

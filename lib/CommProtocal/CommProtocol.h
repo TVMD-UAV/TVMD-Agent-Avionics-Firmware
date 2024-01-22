@@ -27,9 +27,9 @@ struct AgentData {
   uint8_t client_id;
 };
 
-typedef std::function<void(const CtrlPacket &)> CtrlCallbackFunc;
-typedef std::function<void(const StatePacket &)> StateCallbackFunc;
-typedef std::function<void(const InstructPacket &)> InstructCallbackFunc;
+typedef std::function<void(const CtrlPacket, const AGENT_STATE)> CtrlCallbackFunc;
+typedef std::function<void(const StatePacket)> StateCallbackFunc;
+typedef std::function<void(const InstructPacket)> InstructCallbackFunc;
 typedef std::function<void(uint8_t agent_id)> DisconnectCallbackFunc;
 
 class CommProtocol {
