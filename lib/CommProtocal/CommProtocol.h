@@ -136,7 +136,18 @@ protected:
   static uint8_t agent_id_map[MAX_NUM_CID];
 
   bool broadcastBIN(uint8_t *payload, size_t length = 0) {
-    return webSocket.broadcastBIN(payload, length);
+    try {
+      if (webSocket.connectedClients() > 0)
+        return webSocket.broadcastBIN(payload, length);
+    }
+    catch (const std::exception &e) {
+      log_e("Exception: %s\n", e.what());
+    }
+    catch (...) {
+      log_e("Exception happened\n");
+    }
+
+    return false;
   };
 
   virtual bool sendToBIN(uint8_t client_id, uint8_t *payload,

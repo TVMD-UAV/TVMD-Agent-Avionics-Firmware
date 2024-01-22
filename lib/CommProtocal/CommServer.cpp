@@ -14,39 +14,24 @@ void CommServer::init(uint8_t agent_id) {
   webSocket.onEvent(
       [&](uint8_t client_id, WStype_t type, uint8_t *payload, size_t length) {
         switch (type) {
-        case WStype_DISCONNECTED: {
-          const uint8_t aid = agent_id_map[client_id];
-          if (check_agent_id_valid(aid)) {
-            agent_id_map[client_id] = 0;
-            log_d("Disconnect client id: %d, agent id: %d\n", client_id, aid);
-            set_connection_lost(aid);
-          }
-        }
-#ifdef COMM_DEBUG_PRINT
-          log_d("[%u] Disconnected!\n", client_id);
-#endif
+        case WStype_DISCONNECTED: 
+          // log_w("Client [%u] Disconnected!\n", client_id);
           break;
 
         case WStype_CONNECTED: {
 #ifdef COMM_DEBUG_PRINT
           IPAddress ip = webSocket.remoteIP(client_id);
-          log_d("[%u] Connected from %d.%d.%d.%d url: %s\n", client_id, ip[0],
+          log_v("[%u] Connected from %d.%d.%d.%d url: %s\n", client_id, ip[0],
                 ip[1], ip[2], ip[3], payload);
 #endif
         } break;
 
         case WStype_TEXT:
-#ifdef COMM_DEBUG_PRINT
-          log_d("[%u] get Text: %s at %ld\n", client_id, payload, micros());
-#endif
+          // log_v("[%u] get Text: %s at %ld\n", client_id, payload, micros());
           break;
 
-        case WStype_BIN: {
+        case WStype_BIN:
           callback_router(client_id, payload, length);
-        }
-#ifdef COMM_DEBUG_PRINT
-          log_d("Receiving bin: cid=%d, aid:%d\n", client_id, agent_id_map[client_id]);
-#endif
           break;
 
         case WStype_ERROR:
@@ -81,10 +66,6 @@ void CommServer::callback_router(uint8_t client_id, uint8_t *payload,
 }
 
 bool CommServer::send(const Packet *const packet, const size_t len) {
-#ifdef COMM_DEBUG_PRINT
-  log_d("Publishing ping: id=%d, time=%ld, at %ld\n", packet->id, packet->time,
-        micros());
-#endif
   return broadcastBIN((uint8_t *)packet, len);
 }
 
