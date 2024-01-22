@@ -14,31 +14,25 @@ TaskHandle_t Core::state_feedback_handle;
 #if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
 void Core::state_feedback(void *parameter) {
   
-  static time_t last_summary_time = 0;
   while (true) {
     if (sensor.update() == 0) {
       #ifndef SERVER
       // Beacon message to navigator
       #ifdef COMM_SETUP
       if (sensor.available()){
-        if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+        if (xSemaphoreTake(_state_mutex, 0) == pdTRUE) {
           sensor.state_packet_gen(&_state_packet);
           _state_packet.state = _state;
           _state_packet.agent_id = _agent_id;
           _state_packet.id += 1;
-
-          // send the packet to server
-          if (comm.send(&_state_packet, sizeof(_state_packet))) {
-            CommClient::state_health.feed_data(micros());
-            last_summary_time = millis();
-          }
+          xSemaphoreGive(_state_semphr);
           xSemaphoreGive(_state_mutex);
         }
       }
       #endif
       #else
       // Beacon message to the companion computer
-      if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+      if (xSemaphoreTake(_state_mutex, 0) == pdTRUE) {
         imu_echo.set_imu_data(sensor.get_sensor_data());
         xSemaphoreGive(_state_mutex);
       }
@@ -46,7 +40,6 @@ void Core::state_feedback(void *parameter) {
     }
     // pass control to another task waiting to be executed
     vTaskDelay(2 / portTICK_PERIOD_MS);
-    // yield();
   }
 }
 #endif
@@ -57,7 +50,6 @@ void Core::websocket_loop(void *parameter) {
     comm.update();
     // To allow other threads have chances to join
     vTaskDelay(2 / portTICK_PERIOD_MS);
-    // yield();
   }
 #endif
 }
@@ -65,39 +57,38 @@ void Core::websocket_loop(void *parameter) {
 void Core::instruction_loop(void *parameter) {
   for (;;) {
     instruction_handler.update();
+
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    // yield();
   }
 }
 
 void Core::regular_update(void *parameter) {
+  // This process must br run at the process the same with the websocket loop
   for (;;) {
+    state_machine_update();
+
     #ifdef SERVER
-    // check for connection lost
-    for (int i = 0; i < MAX_NUM_AGENTS; i++) {  
-      if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
-        if (millis() - agents[i].packet.time > MAX_TIME_OUT)
-          agents[i].packet.state = AGENT_STATE::LOST_CONN;
-        xSemaphoreGive(_agents_mutex);
-      }
-    }
-
-    if (_state == AGENT_STATE::ARMING) {
-      // check for all agents armed
-      if (check_all_agent_alive(AGENT_STATE::ARMED))
-        set_state(AGENT_STATE::ARMED);
-    }
-
-    if (_packet_ready) {
-      if (xSemaphoreTake(_packet_mutex, portMAX_DELAY) == pdTRUE) {
-        _packet.time = micros();
+    // Synchronize the packet
+    if (xSemaphoreTake(_packet_semphr, 1 / portTICK_PERIOD_MS) == pdTRUE) {
+      if (xSemaphoreTake(_packet_mutex, 0) == pdTRUE) {
         Core::comm.send(&_packet, sizeof(CtrlPacketArray));
+        _packet_ready = false;
         xSemaphoreGive(_packet_mutex);
       }
-      _packet_ready = false;
     }
     #endif
+
+    #if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
+    // send the packet to server
+    if (xSemaphoreTake(_state_semphr, 1 / portTICK_PERIOD_MS) == pdTRUE) {
+      if (xSemaphoreTake(_state_mutex, 0) == pdTRUE) {
+        if (comm.send(&_state_packet, sizeof(_state_packet))) {
+          CommClient::state_health.feed_data(micros());
+        }
+        xSemaphoreGive(_state_mutex);
+      }
+    }
+    #endif 
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    // yield();
   }
 };

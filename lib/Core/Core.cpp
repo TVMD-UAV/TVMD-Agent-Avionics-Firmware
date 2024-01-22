@@ -1,15 +1,17 @@
 #include "Core.h"
 
 uint8_t Core::_agent_id;
-AGENT_STATE Core::_state;
+volatile AGENT_STATE Core::_state;
+volatile AGENT_STATE Core::_last_state{AGENT_STATE::STARTING};
 InstructionHandler Core::instruction_handler;
 
 
 #ifdef SERVER
 SemaphoreHandle_t Core::_packet_mutex;
+SemaphoreHandle_t Core::_packet_semphr;
 CtrlPacketArray Core::_packet;
 bool Core::_packet_ready{false};
-bool Core::_armed{false};
+bool Core::_nav_armed{false};
 
 SemaphoreHandle_t Core::_agents_mutex{NULL};
 volatile AgentData Core::agents[MAX_NUM_AGENTS];
@@ -20,11 +22,13 @@ CommServer Core::comm = CommServer(COMM_PORT);
 Sensors Core::sensor = Sensors();
 ImuEchoHandler Core::imu_echo = ImuEchoHandler();
 SemaphoreHandle_t Core::_state_mutex{NULL};
+SemaphoreHandle_t Core::_state_semphr{NULL};
 #endif
 
 #else
 SemaphoreHandle_t Core::_ctrl_mutex{NULL};
 SemaphoreHandle_t Core::_state_mutex{NULL};
+SemaphoreHandle_t Core::_state_semphr{NULL};
 
 StatePacket Core::_state_packet;
 CtrlPacket Core::_ctrl_packet;
@@ -50,13 +54,16 @@ void Core::init() {
   _packet.time = 0;
   _packet.id = 0;
   _packet_mutex = xSemaphoreCreateMutex();
+  _packet_semphr = xSemaphoreCreateCounting(10, 0);
   _agents_mutex = xSemaphoreCreateMutex();
   #ifdef ENABLE_SERVER_IMU_ECHO
   _state_mutex = xSemaphoreCreateMutex();
+  _state_semphr = xSemaphoreCreateCounting(10, 0);
   #endif
   #else 
   _ctrl_mutex = xSemaphoreCreateMutex();
   _state_mutex = xSemaphoreCreateMutex();
+  _state_semphr = xSemaphoreCreateCounting(10, 0);
   _state_packet.agent_id = _agent_id;
   #endif
 
@@ -230,10 +237,10 @@ void Core::print_summary() {
     const uint8_t aidx = get_aidx(aid);
 
     // Core module save agent data indexed by agent id (aid)
-    Quaternion q;
-    AGENT_STATE state;
-    float fps;
-    if (xSemaphoreTake(_agents_mutex, portMAX_DELAY) == pdTRUE) {
+    Quaternion q = {0, 0, 0, 0};
+    AGENT_STATE state = AGENT_STATE::LOST_CONN;
+    float fps = 0.0f;
+    if (xSemaphoreTake(_agents_mutex, 0) == pdTRUE) {
       memcpy((void*)&q, (void*)&(agents[aidx].packet.s.orientation), sizeof(Quaternion));
       state = agents[aidx].packet.state;
       fps = CommServer::state_health[aidx].get_fps();
@@ -269,7 +276,7 @@ void Core::print_summary() {
 
 void Core::print_instructions() {
   #ifdef SERVER
-  log_i("\nAid\t eta_x\t eta_y\t motor1\t motor2\t armed: %s", _armed ? "true" : "false");
+  log_i("\nAid\t eta_x\t eta_y\t motor1\t motor2\t armed: %s", _nav_armed ? "true" : "false");
 
   for (int i = 0; i < MAX_NUM_AGENTS; i++) {
     double eta_x, eta_y, omega_p1, omega_p2;
@@ -278,8 +285,8 @@ void Core::print_instructions() {
       eta_y = _packet.packets[i].eta_y;
       omega_p1 = _packet.packets[i].omega_p1;
       omega_p2 = _packet.packets[i].omega_p2;
+      xSemaphoreGive(_packet_mutex);
     }
-    xSemaphoreGive(_packet_mutex);
     printf("[%d: %d]\t %6.2f\t %6.2f, \t%6.2f, \t%6.2f\n", 
       i, _state, eta_x, eta_y, omega_p1, omega_p2);
   }

@@ -67,11 +67,12 @@ protected:
     // A server is responsible for listening control commands from the 
     // navigator and transport them to all agents.
     static SemaphoreHandle_t _packet_mutex;
+    static SemaphoreHandle_t _packet_semphr;
     static CtrlPacketArray _packet;
     static bool _packet_ready;
 
     // The armed state from the navigator
-    static bool _armed;
+    static bool _nav_armed;
     
     // Agents' feedbacks including states and sensor data
     static SemaphoreHandle_t _agents_mutex;
@@ -79,12 +80,14 @@ protected:
 
     #ifdef ENABLE_SERVER_IMU_ECHO
     static SemaphoreHandle_t _state_mutex;
+    static SemaphoreHandle_t _state_semphr;
     #endif
 #else
     // The state packet to the navigator (maintained by the sensor callback).
     // When the sensors are ready, the state packet is updated and sent to the
     // navigator.
     static SemaphoreHandle_t _state_mutex;
+    static SemaphoreHandle_t _state_semphr;
     static StatePacket _state_packet;
 
     // The control packet from the navigator.
@@ -95,7 +98,8 @@ protected:
     // The agent id of this agent, a server's id must be 0.
     static uint8_t _agent_id;
 
-    static AGENT_STATE _state;
+    static volatile AGENT_STATE _state;
+    static volatile AGENT_STATE _last_state;
     
     // Loading agent id from EEPROM
     static int get_agent_id();
@@ -106,9 +110,7 @@ protected:
         return agent_id - 1;
     };
 
-#ifdef SERVER
-    static bool check_all_agent_alive(AGENT_STATE target = AGENT_STATE::INITED);
-#endif
+    static bool check_comm_alive();
 
 private:
     // Wifi initialization
@@ -136,6 +138,8 @@ private:
 
     static TaskHandle_t regular_task_handle;
     static void regular_update(void *parameter);
+
+    static void state_machine_update();
 };
 
 #endif

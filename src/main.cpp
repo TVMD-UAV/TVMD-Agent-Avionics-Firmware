@@ -55,8 +55,7 @@ void cmdParserRoutine() {
         }
         else if (strncmp(cmdParser.getCmdParam(1), "disarm", 6) == 0) {
           log_i("Force disarming");
-          Core::set_armed(false);
-          Core::set_state(AGENT_STATE::INITED); return;
+          Core::set_armed(false); return;
         }
       }
       #ifndef SERVER

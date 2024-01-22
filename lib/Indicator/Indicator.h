@@ -51,7 +51,7 @@ public:
     void set_led_state(LED_ID led_id, LED_STATE state, uint32_t color) {
         for (uint8_t i=0; (i < LED_COUNT) && (i < LED_ID::BOTH-1); ++i) {
             if ((led_id >> i) & 1 ) { 
-                if (xSemaphoreTake(_state_mutex, portMAX_DELAY) == pdTRUE) {
+                if (xSemaphoreTake(_state_mutex, 0) == pdTRUE) {
                     _state[i] = state;
                     _phase[i] = 0;
                     _color[i] = color;

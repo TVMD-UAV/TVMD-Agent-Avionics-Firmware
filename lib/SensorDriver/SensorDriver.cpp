@@ -46,7 +46,7 @@ int Sensors::init(int update_rate) {
 }
 
 void Sensors::state_packet_gen(StatePacket *const _packet) {
-  if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+  if (xSemaphoreTake(_data_mutex, 0) == pdTRUE) {
     memcpy(&(_packet->s), &_data, sizeof(_data));
     xSemaphoreGive(_data_mutex);
   }
