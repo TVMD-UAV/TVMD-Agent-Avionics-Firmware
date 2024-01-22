@@ -64,6 +64,8 @@ public:
 
   void set_armed(bool _arm);
 
+  void set_idle() { raw_write(_idle_value); };
+
 protected:
   bool armed{false};
 

@@ -123,7 +123,7 @@ void Core::init() {
   // TODO: check stack usages
   xTaskCreatePinnedToCore(websocket_loop,         /* Function to implement the task */
                           "websocket_updating",   /* Name of the task */
-                          7000,                   /* Stack size in words */
+                          5000,                   /* Stack size in words */
                           NULL,                   /* Task input parameter */
                           5,                      /* Priority of the task */
                           &websocket_task_handle, /* Task handle. */
@@ -131,7 +131,7 @@ void Core::init() {
 
   xTaskCreatePinnedToCore(instruction_loop,       /* Function to implement the task */
                           "instruction_updating", /* Name of the task */
-                          1000,                   /* Stack size in words */
+                          2000,                   /* Stack size in words */
                           NULL,                   /* Task input parameter */
                           1,                      /* Priority of the task */
                           &instruction_handle,    /* Task handle. */
@@ -140,7 +140,7 @@ void Core::init() {
 #if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
   xTaskCreatePinnedToCore(state_feedback,         /* Function to implement the task */
                           "state_feedback",       /* Name of the task */
-                          5000,                   /* Stack size in words */
+                          3000,                   /* Stack size in words */
                           NULL,                   /* Task input parameter */
                           3,                      /* Priority of the task */
                           &state_feedback_handle, /* Task handle. */
@@ -149,11 +149,11 @@ void Core::init() {
 
   xTaskCreatePinnedToCore(regular_update,         /* Function to implement the task */
                           "regular_update",       /* Name of the task */
-                          2000,                   /* Stack size in words */
+                          3000,                   /* Stack size in words */
                           NULL,                   /* Task input parameter */
                           2,                      /* Priority of the task */
                           &regular_task_handle,   /* Task handle. */
-                          0);                     /* Core where the task should run */
+                          1);                     /* Core where the task should run */
   
   instruction_handler.init();
 
@@ -269,6 +269,11 @@ void Core::print_summary() {
   // print stack memory usage
   printf("Free stack of indicator routine: %d\n", uxTaskGetStackHighWaterMark(indicator_task_handle));
   printf("Free stack of websocket routine: %d\n", uxTaskGetStackHighWaterMark(websocket_task_handle));
+  printf("Free stack of instruction routine: %d\n", uxTaskGetStackHighWaterMark(instruction_handle));
+  printf("Free stack of regular routine: %d\n", uxTaskGetStackHighWaterMark(regular_task_handle));
+  #if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
+  printf("Free stack of state feedback routine: %d\n", uxTaskGetStackHighWaterMark(state_feedback_handle));
+  #endif
 
   // print heap memory usage
   printf("Free heap: %d\n", ESP.getFreeHeap());
@@ -279,8 +284,8 @@ void Core::print_instructions() {
   log_i("\nAid\t eta_x\t eta_y\t motor1\t motor2\t armed: %s", _nav_armed ? "true" : "false");
 
   for (int i = 0; i < MAX_NUM_AGENTS; i++) {
-    double eta_x, eta_y, omega_p1, omega_p2;
-    if (xSemaphoreTake(_packet_mutex, portMAX_DELAY) == pdTRUE) {
+    double eta_x=0.0f, eta_y=0.0f, omega_p1=0.0f, omega_p2=0.0f;
+    if (xSemaphoreTake(_packet_mutex, 0) == pdTRUE) {
       eta_x = _packet.packets[i].eta_x;
       eta_y = _packet.packets[i].eta_y;
       omega_p1 = _packet.packets[i].omega_p1;

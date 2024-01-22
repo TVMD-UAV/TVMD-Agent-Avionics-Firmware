@@ -24,6 +24,7 @@ void setup() {
 void loop() {
   static time_t last_publish_time = 0;
   static time_t last_summary_time = 0;
+  static time_t last_sensor_time = 0;
 
   if (millis() - last_summary_time >= 1000) {
     Core::print_summary();
@@ -35,6 +36,18 @@ void loop() {
     Core::print_instructions();
     last_publish_time = millis();
   }
+
+  #ifdef ENABLE_SERVER_IMU_ECHO
+  if (millis() - last_sensor_time >= 1000) {
+    StatePacket packet;
+    Core::sensor.state_packet_gen(&packet);
+    SERIAL_PORT.printf("%7.4f, %7.4f, %7.4f, %7.4f | %7.4f, %7.4f, %7.4f | %7.4f, %7.4f, %7.4f \n", 
+      packet.s.orientation.q1, packet.s.orientation.q2, packet.s.orientation.q3, packet.s.orientation.q0, 
+      packet.s.gyro.x, packet.s.gyro.y, packet.s.gyro.z,
+      packet.s.acc.x, packet.s.acc.y, packet.s.acc.z);
+    last_sensor_time = millis();
+  }
+  #endif
 #endif
 
   cmdParserRoutine();

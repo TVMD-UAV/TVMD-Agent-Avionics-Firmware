@@ -358,7 +358,7 @@ int Sensors::update() {
           const float q3 = ((float)data.Quat9.Data.Q3) / 1073741824.0; // Convert to double. Divide by 2^30
           const float q0 = sqrt(1.0 - ((q1 * q1) + (q2 * q2) + (q3 * q3)));
 
-          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+          if (xSemaphoreTake(_data_mutex, 0) == pdTRUE) {
             _data.orientation.q0 = q0;
             _data.orientation.q1 = q1;
             _data.orientation.q2 = q2;
@@ -371,7 +371,7 @@ int Sensors::update() {
 
         if ((data.header & DMP_header_bitmap_Accel) > 0) {
           // We have asked for orientation data so we should receive Quat9
-          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+          if (xSemaphoreTake(_data_mutex, 0) == pdTRUE) {
             _data.acc.x = (float)data.Raw_Accel.Data.X / _acc_scale_factor * G_TO_MS2;
             _data.acc.y = (float)data.Raw_Accel.Data.Y / _acc_scale_factor * G_TO_MS2;
             _data.acc.z = (float)data.Raw_Accel.Data.Z / _acc_scale_factor * G_TO_MS2;
@@ -381,7 +381,7 @@ int Sensors::update() {
 
         if ((data.header & DMP_header_bitmap_Gyro) > 0) {
           // We have asked for orientation data so we should receive Quat9
-          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+          if (xSemaphoreTake(_data_mutex, 0) == pdTRUE) {
             _data.gyro.x = (float)data.Raw_Gyro.Data.X / _gyro_scale_factor * DEG_TO_RAD;
             _data.gyro.y = (float)data.Raw_Gyro.Data.Y / _gyro_scale_factor * DEG_TO_RAD;
             _data.gyro.z = (float)data.Raw_Gyro.Data.Z / _gyro_scale_factor * DEG_TO_RAD;
@@ -391,7 +391,7 @@ int Sensors::update() {
 
         // if ((data.header & DMP_header_bitmap_Compass) > 0) {
         //   // We have asked for orientation data so we should receive Quat9 
-        //   if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+        //   if (xSemaphoreTake(_data_mutex, 0) == pdTRUE) {
         //     _data.compass.x = (float)data.Compass.Data.X;
         //     _data.compass.y = (float)data.Compass.Data.Y;
         //     _data.compass.z = (float)data.Compass.Data.Z;
@@ -408,7 +408,7 @@ int Sensors::update() {
         // polling
         ICM_20948_AGMT_t agmt = imu.getAGMT();
         if (imu.status == ICM_20948_Stat_Ok) {
-          if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+          if (xSemaphoreTake(_data_mutex, 0) == pdTRUE) {
             _data.acc.x = (float)agmt.acc.axes.x / _acc_scale_factor * G_TO_MS2;
             _data.acc.y = (float)agmt.acc.axes.y / _acc_scale_factor * G_TO_MS2;
             _data.acc.z = (float)agmt.acc.axes.z / _acc_scale_factor * G_TO_MS2;
@@ -433,7 +433,7 @@ int Sensors::update() {
 
   if (baro_enabled & (millis() - last_update_time > _update_interval)) {
     const float seaLevelhPa = 1013.25;
-    if (xSemaphoreTake(_data_mutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(_data_mutex, 0) == pdTRUE) {
       _data.pressure = baro.readPressure();
       _data.altitude = PRESSURE_TO_ALTITUDE(_data.pressure, seaLevelhPa);
       xSemaphoreGive(_data_mutex);
