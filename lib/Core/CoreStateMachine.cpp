@@ -9,12 +9,12 @@ bool Core::set_armed(bool armed) {
 
     // Try to arm
     if (_nav_armed && (_state == AGENT_STATE::INITED)) {
-      return set_state(AGENT_STATE::ARMING);
+      return set_state(AGENT_STATE::ARMING, CMD_TRY_ARMING);
     }
   } else {
     // force disarming
     if (_state != AGENT_STATE::LOST_CONN) {
-      return set_state(AGENT_STATE::INITED);
+      return set_state(AGENT_STATE::INITED, CMD_DISARMING);
     }
   }
   return false;
@@ -34,7 +34,7 @@ bool Core::set_armed(bool armed) {
  * @param target the target state
  * @return true if ok
  */
-bool Core::set_state(AGENT_STATE target) {
+bool Core::set_state(AGENT_STATE target, StateChangeReason reason) {
   if (target == _state)
     return false;
   
@@ -68,7 +68,7 @@ bool Core::set_state(AGENT_STATE target) {
     default:
       return false;
   }
-  log_i("[STATE] set to %d from %d", target, _state);
+  log_i("[STATE] set to %d from %d due to %d", target, _state, reason);
   _state = target;
   return true;
 }
@@ -92,7 +92,7 @@ void Core::state_machine_update() {
     #ifdef SERVER
     // if state is arming, try to arm
     if ((_state == AGENT_STATE::ARMING) && comm_alive) {
-      set_state(AGENT_STATE::ARMED);
+      set_state(AGENT_STATE::ARMED, ARMING_PASSED);
     }
     #else 
     bool armed = _state == AGENT_STATE::ARMED;
@@ -104,10 +104,10 @@ void Core::state_machine_update() {
 
   // if any agent timeout, set state to LOST_CONN
   if (!comm_alive) {
-    set_state(AGENT_STATE::LOST_CONN);
+    set_state(AGENT_STATE::LOST_CONN, LOST_CONN);
   } else {
     if (_state == AGENT_STATE::LOST_CONN) {
-      set_state(AGENT_STATE::INITED);
+      set_state(AGENT_STATE::INITED, CONN_RELIVED);
     }
   }
 }

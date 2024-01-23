@@ -167,9 +167,9 @@ void Core::init() {
 
   // TODO: inited is not equal to ready (maybe not connected)
   if (WiFi.status() != WL_CONNECTED) 
-    set_state(AGENT_STATE::LOST_CONN);
+    set_state(AGENT_STATE::LOST_CONN, WIFI_LOST);
   else 
-    set_state(AGENT_STATE::INITED);
+    set_state(AGENT_STATE::INITED, NONE);
 
   // TODO: Move indicator update to set_state()
 }

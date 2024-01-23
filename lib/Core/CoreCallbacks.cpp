@@ -76,13 +76,13 @@ void Core::comm_callback_setup() {
     CommClient::ctrl_health.feed_data(micros());
 
     if (_state == AGENT_STATE::LOST_CONN) {
-      set_state(AGENT_STATE::INITED);
+      set_state(AGENT_STATE::INITED, CONN_RELIVED);
     }
     
     if ((nav_state == AGENT_STATE::ARMING) || (nav_state == AGENT_STATE::ARMED)) {
-      set_state(AGENT_STATE::ARMED);
+      set_state(AGENT_STATE::ARMED, SUCCEED_ARMED);
     } else {
-      set_state(AGENT_STATE::INITED);
+      set_state(AGENT_STATE::INITED, AUTO_DISARMING);
     }
 
     if (_state == AGENT_STATE::ARMED) {

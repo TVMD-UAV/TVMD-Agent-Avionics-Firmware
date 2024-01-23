@@ -54,7 +54,20 @@ public:
 
     static bool set_armed(bool armed);
 
-    static bool set_state(AGENT_STATE target);
+    enum StateChangeReason {
+        NONE=0,
+        LOST_CONN=1,    // communication timeout in regular check
+        CONN_RELIVED=2, // communication recovered in regular check (or receiving new message from the server)
+        WIFI_LOST=3,
+        LOST_NAVIGATOR,
+        ARMING_PASSED,
+        CMD_TRY_ARMING, // server receive button command
+        CMD_DISARMING,  // server receive button command
+        SUCCEED_ARMED,  // agent observes server is armed
+        AUTO_DISARMING, // agent observes server is not armed
+    };
+
+    static bool set_state(AGENT_STATE target, StateChangeReason reason = NONE);
 
     static AGENT_STATE get_current_state() { return _state; };
     
