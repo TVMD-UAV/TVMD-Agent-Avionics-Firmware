@@ -39,7 +39,7 @@ void Core::state_feedback(void *parameter) {
       #endif
     }
     // pass control to another task waiting to be executed
-    vTaskDelay(2 / portTICK_PERIOD_MS);
+    vTaskDelay(50 / portTICK_PERIOD_MS);
   }
 }
 #endif
@@ -69,10 +69,12 @@ void Core::regular_update(void *parameter) {
 
     #ifdef SERVER
     // Synchronize the packet
-    if (xSemaphoreTake(_packet_semphr, 1 / portTICK_PERIOD_MS) == pdTRUE) {
+    if (xSemaphoreTake(_packet_semphr, 0) == pdTRUE) {
       if (xSemaphoreTake(_packet_mutex, 0) == pdTRUE) {
-        Core::comm.send(&_packet, sizeof(CtrlPacketArray));
-        _packet_ready = false;
+        if (_packet_ready) {
+          Core::comm.send(&_packet, sizeof(CtrlPacketArray));
+          _packet_ready = false;
+        }
         xSemaphoreGive(_packet_mutex);
       }
     }
@@ -80,7 +82,7 @@ void Core::regular_update(void *parameter) {
 
     #if !defined(SERVER) || defined(ENABLE_SERVER_IMU_ECHO)
     // send the packet to server
-    if (xSemaphoreTake(_state_semphr, 1 / portTICK_PERIOD_MS) == pdTRUE) {
+    if (xSemaphoreTake(_state_semphr, 0) == pdTRUE) {
       if (xSemaphoreTake(_state_mutex, 0) == pdTRUE) {
         if (comm.send(&_state_packet, sizeof(_state_packet))) {
           CommClient::state_health.feed_data(micros());

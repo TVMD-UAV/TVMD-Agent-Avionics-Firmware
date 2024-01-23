@@ -54,16 +54,16 @@ void Core::init() {
   _packet.time = 0;
   _packet.id = 0;
   _packet_mutex = xSemaphoreCreateMutex();
-  _packet_semphr = xSemaphoreCreateCounting(10, 0);
+  _packet_semphr = xSemaphoreCreateBinary();
   _agents_mutex = xSemaphoreCreateMutex();
   #ifdef ENABLE_SERVER_IMU_ECHO
   _state_mutex = xSemaphoreCreateMutex();
-  _state_semphr = xSemaphoreCreateCounting(10, 0);
+  _state_semphr = xSemaphoreCreateBinary();
   #endif
   #else 
   _ctrl_mutex = xSemaphoreCreateMutex();
   _state_mutex = xSemaphoreCreateMutex();
-  _state_semphr = xSemaphoreCreateCounting(10, 0);
+  _state_semphr = xSemaphoreCreateBinary();
   _state_packet.agent_id = _agent_id;
   #endif
 
@@ -236,6 +236,7 @@ void Core::print_summary() {
 
     const uint8_t aidx = get_aidx(aid);
 
+    #if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_DEBUG
     // Core module save agent data indexed by agent id (aid)
     Quaternion q = {0, 0, 0, 0};
     AGENT_STATE state = AGENT_STATE::LOST_CONN;
@@ -249,10 +250,15 @@ void Core::print_summary() {
     printf("[%d]\t %d\t %d\t %6.2f\t %6.2f, \t%6.2f, \t%6.2f, \t%6.2f\n", 
       aid, cid, state, fps, 
       q.q0, q.q1, q.q2, q.q3);
+    #elif ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
+    float fps = CommServer::state_health[aidx].get_fps();
+    printf("[%d]: %f\t", aid, fps);
+    #endif
     
     // Move to next client id
     cid += 1;
   }
+  printf("\n");
 #else
   log_i("\nAid\t State\t C-FPS\t S-FPS\t eta-x\t eta-y\t motor1\t motor2");
   const double eta_x = _ctrl_packet.eta_x;
